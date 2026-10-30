@@ -1,0 +1,3157 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Liga Tactical Hub - 20 Equipos (app_europa.html)</title>
+  <meta name="description" content="Análisis táctico de fútbol: registro de goles por fases (ABP, posicional, vertical, directo), tramos de minutos, métricas de rendimiento y exportación PNG con html2canvas para los 20 equipos de la liga." />
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              500: '#3b82f6',
+              600: '#2563eb',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- React 18 & Babel via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- html2canvas for Native PNG Card Export -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: #030712;
+      color: #f8fafc;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // --- 20 OFFICIAL TEAMS FROM USER ATTACHMENT ---
+    const LEAGUE_TEAMS = [
+      { id: 'atletico-madrideno', name: 'Atlético Madrileño', shortName: 'At. Madrileño', color: '#dc2626', stadium: 'Cerro del Espino' },
+      { id: 'ud-ibiza', name: 'UD Ibiza', shortName: 'Ibiza', color: '#38bdf8', stadium: 'Can Misses' },
+      { id: 'ue-sant-andreu', name: 'UE Sant Andreu', shortName: 'Sant Andreu', color: '#eab308', stadium: 'Narcís Sala' },
+      { id: 'rm-castilla', name: 'Real Madrid Castilla', shortName: 'RM Castilla', color: '#7c3aed', stadium: 'Alfredo Di Stéfano' },
+      { id: 'real-zaragoza', name: 'Real Zaragoza', shortName: 'Zaragoza', color: '#2563eb', stadium: 'La Romareda' },
+      { id: 'antequera-cf', name: 'Antequera CF', shortName: 'Antequera', color: '#16a34a', stadium: 'El Maulí' },
+      { id: 'juventud-torremolinos', name: 'Juventud de Torremolinos CF', shortName: 'Torremolinos', color: '#15803d', stadium: 'El Pozuelo' },
+      { id: 'hercules-alicante', name: 'Hércules de Alicante CF', shortName: 'Hércules', color: '#2563eb', stadium: 'José Rico Pérez' },
+      { id: 'real-jaen', name: 'Real Jaén CF', shortName: 'Real Jaén', color: '#a855f7', stadium: 'Nuevo La Victoria' },
+      { id: 'sd-huesca', name: 'SD Huesca', shortName: 'Huesca', color: '#b91c1c', stadium: 'El Alcoraz' },
+      { id: 'ad-alcorcon', name: 'AD Alcorcón', shortName: 'Alcorcón', color: '#facc15', stadium: 'Santo Domingo' },
+      { id: 'ce-europa', name: 'CE Europa', shortName: 'Europa', color: '#3b82f6', stadium: 'Nou Sardenya' },
+      { id: 'cd-teruel', name: 'CD Teruel', shortName: 'Teruel', color: '#dc2626', stadium: 'Pinilla' },
+      { id: 'fc-cartagena', name: 'FC Cartagena', shortName: 'Cartagena', color: '#1e293b', stadium: 'Cartagonova' },
+      { id: 'villarreal-b', name: 'Villarreal CF "B"', shortName: 'Villarreal B', color: '#eab308', stadium: 'Mini Estadi Villarreal' },
+      { id: 'real-murcia', name: 'Real Murcia CF', shortName: 'Real Murcia', color: '#dc2626', stadium: 'Enrique Roca de Murcia' },
+      { id: 'aguilas-fc', name: 'Águilas FC', shortName: 'Águilas', color: '#2563eb', stadium: 'El Rubial' },
+      { id: 'rayo-majadahonda', name: 'CF Rayo Majadahonda', shortName: 'Rayo Majadahonda', color: '#ef4444', stadium: 'Cerro del Espino' },
+      { id: 'algeciras-cf', name: 'Algeciras CF', shortName: 'Algeciras', color: '#dc2626', stadium: 'Nuevo Mirador' },
+      { id: 'gimnastic-tarragona', name: 'Gimnàstic de Tarragona', shortName: 'Nàstic', color: '#b91c1c', stadium: 'Nou Estadi Costa Daurada' },
+    ];
+
+    const getTeam = (id) => LEAGUE_TEAMS.find(t => t.id === id) || { id, name: id, shortName: id, color: '#3b82f6', stadium: 'Estadio' };
+
+    // --- TACTICAL CATEGORIES & SUBTYPES ---
+    const TACTICAL_CATEGORIES = {
+      DIRECTO: {
+        name: '1. Juego Directo',
+        badge: 'bg-violet-950/80 text-violet-300 border-violet-700/60',
+        subtypes: ['Juego Directo'],
+      },
+      VERTICAL: {
+        name: '2. Juego Vertical',
+        badge: 'bg-sky-950/80 text-sky-300 border-sky-700/60',
+        subtypes: ['Juego Vertical'],
+      },
+      ABP: {
+        name: '3. ABP (Balón Parado)',
+        badge: 'bg-amber-950/80 text-amber-300 border-amber-700/60',
+        subtypes: [
+          'Falta lateral',
+          'Falta frontal',
+          'Falta directa',
+          'Saque de esquina',
+          'Penalti',
+          'Saque de banda',
+        ],
+      },
+      TRANSICION: {
+        name: '4. Transición',
+        badge: 'bg-rose-950/80 text-rose-300 border-rose-700/60',
+        subtypes: ['Transición'],
+      },
+      POSICIONAL: {
+        name: '5. Juego Posicional',
+        badge: 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60',
+        subtypes: [
+          'Pase final',
+          'Centro lateral',
+          'Tiro lejano',
+        ],
+      },
+      PENDIENTE: {
+        name: 'Sin clasificar (Pendiente)',
+        badge: 'bg-amber-950/80 text-amber-300 border-amber-600/40 border-dashed',
+        subtypes: ['Sin definir'],
+      },
+    };
+
+    const MINUTE_INTERVALS = [
+      { key: '0-15', label: "0' - 15'" },
+      { key: '16-30', label: "16' - 30'" },
+      { key: '31-45', label: "31' - 45'+" },
+      { key: '46-60', label: "46' - 60'" },
+      { key: '61-75', label: "61' - 75'" },
+      { key: '76-90+', label: "76' - 90'+" },
+    ];
+
+    const PITCH_ZONES = [
+      { key: 'six_yard_box', label: 'Área Pequeña (<6m)' },
+      { key: 'penalty_spot', label: 'Punto de Penalti (6-11m)' },
+      { key: 'box_left', label: 'Costado Izquierdo Área' },
+      { key: 'box_right', label: 'Costado Derecho Área' },
+      { key: 'box_edge', label: 'Frontal del Área (16-20m)' },
+      { key: 'long_range', label: 'Larga Distancia (>20m)' },
+    ];
+
+    const OFFICIAL_LEAGUE_MATCHES = [
+  // ===================== JORNADA 1 =====================
+  {
+    id: 'j1-m1',
+    jornada: 1,
+    date: '2026-08-29',
+    homeTeamId: 'algeciras-cf',
+    awayTeamId: 'fc-cartagena',
+    homeScore: 1,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Nuevo Mirador',
+    firstGoalTeamId: 'fc-cartagena',
+  },
+  {
+    id: 'j1-m2',
+    jornada: 1,
+    date: '2026-08-29',
+    homeTeamId: 'sd-huesca',
+    awayTeamId: 'ue-sant-andreu',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Alcoraz',
+    firstGoalTeamId: 'sd-huesca',
+  },
+  {
+    id: 'j1-m3',
+    jornada: 1,
+    date: '2026-08-29',
+    homeTeamId: 'rayo-majadahonda',
+    awayTeamId: 'villarreal-b',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Cerro del Espino - Campo 1',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j1-m4',
+    jornada: 1,
+    date: '2026-08-29',
+    homeTeamId: 'hercules-alicante',
+    awayTeamId: 'real-murcia',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio José Rico Pérez',
+    firstGoalTeamId: 'real-murcia',
+  },
+  {
+    id: 'j1-m5',
+    jornada: 1,
+    date: '2026-08-30',
+    homeTeamId: 'aguilas-fc',
+    awayTeamId: 'ad-alcorcon',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Rubial',
+    firstGoalTeamId: 'aguilas-fc',
+  },
+  {
+    id: 'j1-m6',
+    jornada: 1,
+    date: '2026-08-30',
+    homeTeamId: 'atletico-madrideno',
+    awayTeamId: 'juventud-torremolinos',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alcalá de Henares',
+    firstGoalTeamId: 'atletico-madrideno',
+  },
+  {
+    id: 'j1-m7',
+    jornada: 1,
+    date: '2026-08-30',
+    homeTeamId: 'antequera-cf',
+    awayTeamId: 'ud-ibiza',
+    homeScore: 3,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nuevo Estadio El Maulí',
+    firstGoalTeamId: 'antequera-cf',
+  },
+  {
+    id: 'j1-m8',
+    jornada: 1,
+    date: '2026-08-30',
+    homeTeamId: 'ce-europa',
+    awayTeamId: 'real-jaen',
+    homeScore: 0,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'real-jaen',
+  },
+  {
+    id: 'j1-m9',
+    jornada: 1,
+    date: '2026-08-30',
+    homeTeamId: 'gimnastic-tarragona',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nou Estadi Costa Daurada',
+    firstGoalTeamId: 'gimnastic-tarragona',
+  },
+  {
+    id: 'j1-m10',
+    jornada: 1,
+    date: '2026-08-31',
+    homeTeamId: 'cd-teruel',
+    awayTeamId: 'rm-castilla',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Campo Pinilla',
+    firstGoalTeamId: 'NONE',
+  },
+
+  // ===================== JORNADA 2 =====================
+  {
+    id: 'j2-m1',
+    jornada: 2,
+    date: '2026-09-04',
+    homeTeamId: 'villarreal-b',
+    awayTeamId: 'algeciras-cf',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Mini Estadi Villarreal',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j2-m2',
+    jornada: 2,
+    date: '2026-09-05',
+    homeTeamId: 'rm-castilla',
+    awayTeamId: 'juventud-torremolinos',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alfredo Di Stéfano',
+    firstGoalTeamId: 'rm-castilla',
+  },
+  {
+    id: 'j2-m3',
+    jornada: 2,
+    date: '2026-09-05',
+    homeTeamId: 'ue-sant-andreu',
+    awayTeamId: 'aguilas-fc',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'ue-sant-andreu',
+  },
+  {
+    id: 'j2-m4',
+    jornada: 2,
+    date: '2026-09-05',
+    homeTeamId: 'fc-cartagena',
+    awayTeamId: 'gimnastic-tarragona',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Cartagonova',
+    firstGoalTeamId: 'NONE',
+  },
+  {
+    id: 'j2-m5',
+    jornada: 2,
+    date: '2026-09-05',
+    homeTeamId: 'ud-ibiza',
+    awayTeamId: 'rayo-majadahonda',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadi Municipal Can Misses',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j2-m6',
+    jornada: 2,
+    date: '2026-09-05',
+    homeTeamId: 'real-zaragoza',
+    awayTeamId: 'antequera-cf',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Modular - Real Zaragoza',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+  {
+    id: 'j2-m7',
+    jornada: 2,
+    date: '2026-09-06',
+    homeTeamId: 'real-jaen',
+    awayTeamId: 'sd-huesca',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal de la Victoria',
+    firstGoalTeamId: 'real-jaen',
+  },
+  {
+    id: 'j2-m8',
+    jornada: 2,
+    date: '2026-09-06',
+    homeTeamId: 'ad-alcorcon',
+    awayTeamId: 'ce-europa',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Santo Domingo',
+    firstGoalTeamId: 'NONE',
+  },
+  {
+    id: 'j2-m9',
+    jornada: 2,
+    date: '2026-09-06',
+    homeTeamId: 'hercules-alicante',
+    awayTeamId: 'atletico-madrideno',
+    homeScore: 0,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio José Rico Pérez',
+    firstGoalTeamId: 'atletico-madrideno',
+  },
+  {
+    id: 'j2-m10',
+    jornada: 2,
+    date: '2026-09-06',
+    homeTeamId: 'real-murcia',
+    awayTeamId: 'cd-teruel',
+    homeScore: 4,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Nueva Condomina',
+    firstGoalTeamId: 'real-murcia',
+  },
+
+  // ===================== JORNADA 3 =====================
+  {
+    id: 'j3-m1',
+    jornada: 3,
+    date: '2026-09-11',
+    homeTeamId: 'gimnastic-tarragona',
+    awayTeamId: 'algeciras-cf',
+    homeScore: 4,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nou Estadi Costa Daurada',
+    firstGoalTeamId: 'gimnastic-tarragona',
+  },
+  {
+    id: 'j3-m2',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'aguilas-fc',
+    awayTeamId: 'rm-castilla',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Rubial',
+    firstGoalTeamId: 'aguilas-fc',
+  },
+  {
+    id: 'j3-m3',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'antequera-cf',
+    awayTeamId: 'ad-alcorcon',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nuevo Estadio El Maulí',
+    firstGoalTeamId: 'antequera-cf',
+  },
+  {
+    id: 'j3-m4',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'ce-europa',
+    awayTeamId: 'hercules-alicante',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'hercules-alicante',
+  },
+  {
+    id: 'j3-m5',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'ud-ibiza',
+    awayTeamId: 'ue-sant-andreu',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadi Municipal Can Misses',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j3-m6',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'cd-teruel',
+    awayTeamId: 'real-jaen',
+    homeScore: 0,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Campo Pinilla',
+    firstGoalTeamId: 'real-jaen',
+  },
+  {
+    id: 'j3-m7',
+    jornada: 3,
+    date: '2026-09-12',
+    homeTeamId: 'rayo-majadahonda',
+    awayTeamId: 'fc-cartagena',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Cerro del Espino - Campo 1',
+    firstGoalTeamId: 'rayo-majadahonda',
+  },
+  {
+    id: 'j3-m8',
+    jornada: 3,
+    date: '2026-09-13',
+    homeTeamId: 'sd-huesca',
+    awayTeamId: 'villarreal-b',
+    homeScore: 0,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Alcoraz',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j3-m9',
+    jornada: 3,
+    date: '2026-09-13',
+    homeTeamId: 'juventud-torremolinos',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 3,
+    awayScore: 4,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal El Pozuelo',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+  {
+    id: 'j3-m10',
+    jornada: 3,
+    date: '2026-09-13',
+    homeTeamId: 'atletico-madrideno',
+    awayTeamId: 'real-murcia',
+    homeScore: 4,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alcalá de Henares',
+    firstGoalTeamId: 'atletico-madrideno',
+  },
+
+  // ===================== JORNADA 4 =====================
+  {
+    id: 'j4-m1',
+    jornada: 4,
+    date: '2026-09-19',
+    homeTeamId: 'rayo-majadahonda',
+    awayTeamId: 'cd-teruel',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Cerro del Espino - Campo 1',
+    firstGoalTeamId: 'rayo-majadahonda',
+  },
+  {
+    id: 'j4-m2',
+    jornada: 4,
+    date: '2026-09-19',
+    homeTeamId: 'real-murcia',
+    awayTeamId: 'ce-europa',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Nueva Condomina',
+    firstGoalTeamId: 'real-murcia',
+  },
+  {
+    id: 'j4-m3',
+    jornada: 4,
+    date: '2026-09-19',
+    homeTeamId: 'villarreal-b',
+    awayTeamId: 'antequera-cf',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Mini Estadi Villarreal',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j4-m4',
+    jornada: 4,
+    date: '2026-09-19',
+    homeTeamId: 'sd-huesca',
+    awayTeamId: 'atletico-madrideno',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Alcoraz',
+    firstGoalTeamId: 'NONE',
+  },
+  {
+    id: 'j4-m5',
+    jornada: 4,
+    date: '2026-09-19',
+    homeTeamId: 'real-jaen',
+    awayTeamId: 'ud-ibiza',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal de la Victoria',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j4-m6',
+    jornada: 4,
+    date: '2026-09-20',
+    homeTeamId: 'ad-alcorcon',
+    awayTeamId: 'gimnastic-tarragona',
+    homeScore: 3,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Santo Domingo',
+    firstGoalTeamId: 'ad-alcorcon',
+  },
+  {
+    id: 'j4-m7',
+    jornada: 4,
+    date: '2026-09-20',
+    homeTeamId: 'algeciras-cf',
+    awayTeamId: 'aguilas-fc',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Nuevo Mirador',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j4-m8',
+    jornada: 4,
+    date: '2026-09-20',
+    homeTeamId: 'hercules-alicante',
+    awayTeamId: 'juventud-torremolinos',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio José Rico Pérez',
+    firstGoalTeamId: 'hercules-alicante',
+  },
+  {
+    id: 'j4-m9',
+    jornada: 4,
+    date: '2026-09-20',
+    homeTeamId: 'real-zaragoza',
+    awayTeamId: 'fc-cartagena',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Modular - Real Zaragoza',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+  {
+    id: 'j4-m10',
+    jornada: 4,
+    date: '2026-09-23',
+    homeTeamId: 'ue-sant-andreu',
+    awayTeamId: 'rm-castilla',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'ue-sant-andreu',
+  },
+
+  // ===================== JORNADA 5 =====================
+  {
+    id: 'j5-m1',
+    jornada: 5,
+    date: '2026-09-25',
+    homeTeamId: 'atletico-madrideno',
+    awayTeamId: 'villarreal-b',
+    homeScore: 1,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alcalá de Henares',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j5-m2',
+    jornada: 5,
+    date: '2026-09-25',
+    homeTeamId: 'ud-ibiza',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 0,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadi Municipal Can Misses',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+  {
+    id: 'j5-m3',
+    jornada: 5,
+    date: '2026-09-26',
+    homeTeamId: 'aguilas-fc',
+    awayTeamId: 'hercules-alicante',
+    homeScore: 0,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Rubial',
+    firstGoalTeamId: 'hercules-alicante',
+  },
+  {
+    id: 'j5-m4',
+    jornada: 5,
+    date: '2026-09-26',
+    homeTeamId: 'juventud-torremolinos',
+    awayTeamId: 'algeciras-cf',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal El Pozuelo',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j5-m5',
+    jornada: 5,
+    date: '2026-09-26',
+    homeTeamId: 'gimnastic-tarragona',
+    awayTeamId: 'ue-sant-andreu',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nou Estadi Costa Daurada',
+    firstGoalTeamId: 'ue-sant-andreu',
+  },
+  {
+    id: 'j5-m6',
+    jornada: 5,
+    date: '2026-09-27',
+    homeTeamId: 'ce-europa',
+    awayTeamId: 'rayo-majadahonda',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'ce-europa',
+  },
+  {
+    id: 'j5-m7',
+    jornada: 5,
+    date: '2026-09-27',
+    homeTeamId: 'antequera-cf',
+    awayTeamId: 'real-jaen',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nuevo Estadio El Maulí',
+    firstGoalTeamId: 'antequera-cf',
+  },
+  {
+    id: 'j5-m8',
+    jornada: 5,
+    date: '2026-09-27',
+    homeTeamId: 'cd-teruel',
+    awayTeamId: 'sd-huesca',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Campo Pinilla',
+    firstGoalTeamId: 'cd-teruel',
+  },
+  {
+    id: 'j5-m9',
+    jornada: 5,
+    date: '2026-09-27',
+    homeTeamId: 'rm-castilla',
+    awayTeamId: 'ad-alcorcon',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alfredo Di Stéfano',
+    firstGoalTeamId: 'ad-alcorcon',
+  },
+  {
+    id: 'j5-m10',
+    jornada: 5,
+    date: '2026-10-07',
+    homeTeamId: 'fc-cartagena',
+    awayTeamId: 'real-murcia',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Cartagonova',
+    firstGoalTeamId: 'fc-cartagena',
+  },
+
+  // ===================== JORNADA 6 =====================
+  {
+    id: 'j6-m1',
+    jornada: 6,
+    date: '2026-10-02',
+    homeTeamId: 'rm-castilla',
+    awayTeamId: 'atletico-madrideno',
+    homeScore: 3,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alfredo Di Stéfano',
+    firstGoalTeamId: 'rm-castilla',
+  },
+  {
+    id: 'j6-m2',
+    jornada: 6,
+    date: '2026-10-03',
+    homeTeamId: 'hercules-alicante',
+    awayTeamId: 'real-jaen',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio José Rico Pérez',
+    firstGoalTeamId: 'NONE',
+  },
+  {
+    id: 'j6-m3',
+    jornada: 6,
+    date: '2026-10-03',
+    homeTeamId: 'ad-alcorcon',
+    awayTeamId: 'juventud-torremolinos',
+    homeScore: 5,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Santo Domingo',
+    firstGoalTeamId: 'ad-alcorcon',
+  },
+  {
+    id: 'j6-m4',
+    jornada: 6,
+    date: '2026-10-03',
+    homeTeamId: 'fc-cartagena',
+    awayTeamId: 'aguilas-fc',
+    homeScore: 4,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Cartagonova',
+    firstGoalTeamId: 'fc-cartagena',
+  },
+  {
+    id: 'j6-m5',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'real-murcia',
+    awayTeamId: 'gimnastic-tarragona',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Nueva Condomina',
+    firstGoalTeamId: 'real-murcia',
+  },
+  {
+    id: 'j6-m6',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'villarreal-b',
+    awayTeamId: 'ud-ibiza',
+    homeScore: 0,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Mini Estadi Villarreal',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j6-m7',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'sd-huesca',
+    awayTeamId: 'ce-europa',
+    homeScore: 3,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Alcoraz',
+    firstGoalTeamId: 'sd-huesca',
+  },
+  {
+    id: 'j6-m8',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'ue-sant-andreu',
+    awayTeamId: 'antequera-cf',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'ue-sant-andreu',
+  },
+  {
+    id: 'j6-m9',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'algeciras-cf',
+    awayTeamId: 'rayo-majadahonda',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Nuevo Mirador',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j6-m10',
+    jornada: 6,
+    date: '2026-10-04',
+    homeTeamId: 'real-zaragoza',
+    awayTeamId: 'cd-teruel',
+    homeScore: 4,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Modular - Real Zaragoza',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+
+  // ===================== JORNADA 7 =====================
+  {
+    id: 'j7-m1',
+    jornada: 7,
+    date: '2026-10-09',
+    homeTeamId: 'ud-ibiza',
+    awayTeamId: 'rm-castilla',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadi Municipal Can Misses',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j7-m2',
+    jornada: 7,
+    date: '2026-10-10',
+    homeTeamId: 'aguilas-fc',
+    awayTeamId: 'sd-huesca',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Rubial',
+    firstGoalTeamId: 'aguilas-fc',
+  },
+  {
+    id: 'j7-m3',
+    jornada: 7,
+    date: '2026-10-10',
+    homeTeamId: 'juventud-torremolinos',
+    awayTeamId: 'gimnastic-tarragona',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal El Pozuelo',
+    firstGoalTeamId: 'juventud-torremolinos',
+  },
+  {
+    id: 'j7-m4',
+    jornada: 7,
+    date: '2026-10-10',
+    homeTeamId: 'cd-teruel',
+    awayTeamId: 'ad-alcorcon',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Campo Pinilla',
+    firstGoalTeamId: 'cd-teruel',
+  },
+  {
+    id: 'j7-m5',
+    jornada: 7,
+    date: '2026-10-10',
+    homeTeamId: 'real-jaen',
+    awayTeamId: 'villarreal-b',
+    homeScore: 3,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal de la Victoria',
+    firstGoalTeamId: 'real-jaen',
+  },
+  {
+    id: 'j7-m6',
+    jornada: 7,
+    date: '2026-10-11',
+    homeTeamId: 'antequera-cf',
+    awayTeamId: 'fc-cartagena',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nuevo Estadio El Maulí',
+    firstGoalTeamId: 'antequera-cf',
+  },
+  {
+    id: 'j7-m7',
+    jornada: 7,
+    date: '2026-10-11',
+    homeTeamId: 'ce-europa',
+    awayTeamId: 'algeciras-cf',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j7-m8',
+    jornada: 7,
+    date: '2026-10-11',
+    homeTeamId: 'rayo-majadahonda',
+    awayTeamId: 'real-murcia',
+    homeScore: 0,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Cerro del Espino - Campo 1',
+    firstGoalTeamId: 'real-murcia',
+  },
+  {
+    id: 'j7-m9',
+    jornada: 7,
+    date: '2026-10-11',
+    homeTeamId: 'atletico-madrideno',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 4,
+    awayScore: 4,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alcalá de Henares',
+    firstGoalTeamId: 'atletico-madrideno',
+  },
+  {
+    id: 'j7-m10',
+    jornada: 7,
+    date: '2026-10-12',
+    homeTeamId: 'hercules-alicante',
+    awayTeamId: 'ue-sant-andreu',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio José Rico Pérez',
+    firstGoalTeamId: 'hercules-alicante',
+  },
+
+  // ===================== JORNADA 8 =====================
+  {
+    id: 'j8-m1',
+    jornada: 8,
+    date: '2026-10-16',
+    homeTeamId: 'fc-cartagena',
+    awayTeamId: 'ce-europa',
+    homeScore: 3,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Cartagonova',
+    firstGoalTeamId: 'fc-cartagena',
+  },
+  {
+    id: 'j8-m2',
+    jornada: 8,
+    date: '2026-10-16',
+    homeTeamId: 'ad-alcorcon',
+    awayTeamId: 'sd-huesca',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Santo Domingo',
+    firstGoalTeamId: 'ad-alcorcon',
+  },
+  {
+    id: 'j8-m3',
+    jornada: 8,
+    date: '2026-10-17',
+    homeTeamId: 'aguilas-fc',
+    awayTeamId: 'ud-ibiza',
+    homeScore: 1,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Rubial',
+    firstGoalTeamId: 'ud-ibiza',
+  },
+  {
+    id: 'j8-m4',
+    jornada: 8,
+    date: '2026-10-17',
+    homeTeamId: 'villarreal-b',
+    awayTeamId: 'cd-teruel',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Mini Estadi Villarreal',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j8-m5',
+    jornada: 8,
+    date: '2026-10-17',
+    homeTeamId: 'algeciras-cf',
+    awayTeamId: 'hercules-alicante',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Nuevo Mirador',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j8-m6',
+    jornada: 8,
+    date: '2026-10-18',
+    homeTeamId: 'rm-castilla',
+    awayTeamId: 'antequera-cf',
+    homeScore: 3,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alfredo Di Stéfano',
+    firstGoalTeamId: 'rm-castilla',
+  },
+  {
+    id: 'j8-m7',
+    jornada: 8,
+    date: '2026-10-18',
+    homeTeamId: 'gimnastic-tarragona',
+    awayTeamId: 'atletico-madrideno',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nou Estadi Costa Daurada',
+    firstGoalTeamId: 'gimnastic-tarragona',
+  },
+  {
+    id: 'j8-m8',
+    jornada: 8,
+    date: '2026-10-18',
+    homeTeamId: 'ue-sant-andreu',
+    awayTeamId: 'juventud-torremolinos',
+    homeScore: 2,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'ue-sant-andreu',
+  },
+  {
+    id: 'j8-m9',
+    jornada: 8,
+    date: '2026-10-18',
+    homeTeamId: 'real-jaen',
+    awayTeamId: 'rayo-majadahonda',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal de la Victoria',
+    firstGoalTeamId: 'real-jaen',
+  },
+  {
+    id: 'j8-m10',
+    jornada: 8,
+    date: '2026-10-18',
+    homeTeamId: 'real-murcia',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 0,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Nueva Condomina',
+    firstGoalTeamId: 'NONE',
+  },
+
+  // ===================== JORNADA 9 =====================
+  {
+    id: 'j9-m1',
+    jornada: 9,
+    date: '2026-10-23',
+    homeTeamId: 'ce-europa',
+    awayTeamId: 'real-zaragoza',
+    homeScore: 0,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Can Dragó',
+    firstGoalTeamId: 'real-zaragoza',
+  },
+  {
+    id: 'j9-m2',
+    jornada: 9,
+    date: '2026-10-24',
+    homeTeamId: 'juventud-torremolinos',
+    awayTeamId: 'real-murcia',
+    homeScore: 1,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal El Pozuelo',
+    firstGoalTeamId: 'juventud-torremolinos',
+  },
+  {
+    id: 'j9-m3',
+    jornada: 9,
+    date: '2026-10-24',
+    homeTeamId: 'rayo-majadahonda',
+    awayTeamId: 'ue-sant-andreu',
+    homeScore: 2,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Cerro del Espino - Campo 1',
+    firstGoalTeamId: 'rayo-majadahonda',
+  },
+  {
+    id: 'j9-m4',
+    jornada: 9,
+    date: '2026-10-24',
+    homeTeamId: 'sd-huesca',
+    awayTeamId: 'antequera-cf',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio El Alcoraz',
+    firstGoalTeamId: 'sd-huesca',
+  },
+  {
+    id: 'j9-m5',
+    jornada: 9,
+    date: '2026-10-24',
+    homeTeamId: 'cd-teruel',
+    awayTeamId: 'aguilas-fc',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Campo Pinilla',
+    firstGoalTeamId: 'cd-teruel',
+  },
+  {
+    id: 'j9-m6',
+    jornada: 9,
+    date: '2026-10-25',
+    homeTeamId: 'ad-alcorcon',
+    awayTeamId: 'ud-ibiza',
+    homeScore: 3,
+    awayScore: 3,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Santo Domingo',
+    firstGoalTeamId: 'ad-alcorcon',
+  },
+  {
+    id: 'j9-m7',
+    jornada: 9,
+    date: '2026-10-25',
+    homeTeamId: 'atletico-madrideno',
+    awayTeamId: 'real-jaen',
+    homeScore: 1,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Alcalá de Henares',
+    firstGoalTeamId: 'atletico-madrideno',
+  },
+  {
+    id: 'j9-m8',
+    jornada: 9,
+    date: '2026-10-25',
+    homeTeamId: 'villarreal-b',
+    awayTeamId: 'fc-cartagena',
+    homeScore: 4,
+    awayScore: 1,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Mini Estadi Villarreal',
+    firstGoalTeamId: 'villarreal-b',
+  },
+  {
+    id: 'j9-m9',
+    jornada: 9,
+    date: '2026-10-25',
+    homeTeamId: 'algeciras-cf',
+    awayTeamId: 'rm-castilla',
+    homeScore: 2,
+    awayScore: 0,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Estadio Municipal Nuevo Mirador',
+    firstGoalTeamId: 'algeciras-cf',
+  },
+  {
+    id: 'j9-m10',
+    jornada: 9,
+    date: '2026-10-25',
+    homeTeamId: 'gimnastic-tarragona',
+    awayTeamId: 'hercules-alicante',
+    homeScore: 4,
+    awayScore: 2,
+    competition: 'Primera Federación / Liga',
+    stadium: 'Nou Estadi Costa Daurada',
+    firstGoalTeamId: 'gimnastic-tarragona',
+  },
+];
+
+    const OFFICIAL_LEAGUE_GOALS = [
+      {
+        id: 'g-j1-m7-1',
+        matchId: 'j1-m7',
+        teamId: 'antequera-cf',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Destiny',
+        assister: 'Adrià Gené',
+        minute: 9,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m7-2',
+        matchId: 'j1-m7',
+        teamId: 'antequera-cf',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Adrià Gené',
+        assister: 'Moha Bassele',
+        minute: 15,
+        minuteInterval: '0-15',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m7-3',
+        matchId: 'j1-m7',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'antequera-cf',
+        scorer: 'Iker Varela',
+        assister: 'Pedro Ortiz',
+        minute: 21,
+        minuteInterval: '16-30',
+        scoreBefore: '2-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m7-4',
+        matchId: 'j1-m7',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'antequera-cf',
+        scorer: 'Pedro Ortiz',
+        assister: 'Hugo San',
+        minute: 37,
+        minuteInterval: '31-45',
+        scoreBefore: '2-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m7-5',
+        matchId: 'j1-m7',
+        teamId: 'antequera-cf',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Julio Martínez',
+        assister: 'Luismi Gutiérrez',
+        minute: 54,
+        minuteInterval: '46-60',
+        scoreBefore: '2-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 2: UD Ibiza 2 - 1 CF Rayo Majadahonda
+      {
+        id: 'g-j2-m5-1',
+        matchId: 'j2-m5',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'rayo-majadahonda',
+        scorer: 'Théo Valls',
+        assister: 'Manu Justo',
+        minute: 57,
+        minuteInterval: '46-60',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j2-m5-2',
+        matchId: 'j2-m5',
+        teamId: 'rayo-majadahonda',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Antonio Amaro',
+        assister: 'Raúl Hernández',
+        minute: 82,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j2-m5-3',
+        matchId: 'j2-m5',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'rayo-majadahonda',
+        scorer: 'Georges Nsukula',
+        assister: 'Pablo Busto',
+        minute: 92,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 3: UD Ibiza 2 - 0 UE Sant Andreu
+      {
+        id: 'g-j3-m5-1',
+        matchId: 'j3-m5',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'ue-sant-andreu',
+        scorer: 'J. Lazo',
+        minute: 26,
+        minuteInterval: '16-30',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m5-2',
+        matchId: 'j3-m5',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'ue-sant-andreu',
+        scorer: 'Manu Justo',
+        assister: 'David Astals',
+        minute: 91,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 4: Real Jaén 2 - 1 UD Ibiza
+      {
+        id: 'g-j4-m5-1',
+        matchId: 'j4-m5',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'real-jaen',
+        scorer: 'J. Lazo',
+        assister: 'Víctor García',
+        minute: 49,
+        minuteInterval: '46-60',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j4-m5-2',
+        matchId: 'j4-m5',
+        teamId: 'real-jaen',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'David Serrano',
+        minute: 70,
+        minuteInterval: '61-75',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j4-m5-3',
+        matchId: 'j4-m5',
+        teamId: 'real-jaen',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Nacho Castillo',
+        assister: 'Peque Polo',
+        minute: 96,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 5: UD Ibiza 0 - 2 Real Zaragoza
+      {
+        id: 'g-j5-m2-1',
+        matchId: 'j5-m2',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Óscar Ureña',
+        assister: 'Edu Espiau',
+        minute: 58,
+        minuteInterval: '46-60',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j5-m2-2',
+        matchId: 'j5-m2',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Óscar Ureña',
+        minute: 62,
+        minuteInterval: '61-75',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 6: Villarreal B 0 - 1 UD Ibiza
+      {
+        id: 'g-j6-m6-1',
+        matchId: 'j6-m6',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'villarreal-b',
+        scorer: 'Pedro Ortiz',
+        minute: 81,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 7: UD Ibiza 1 - 1 RM Castilla
+      {
+        id: 'g-j7-m1-1',
+        matchId: 'j7-m1',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'rm-castilla',
+        scorer: 'Pedro Ortiz',
+        assister: 'Manu Justo',
+        minute: 13,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m1-2',
+        matchId: 'j7-m1',
+        teamId: 'rm-castilla',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Ángel Carvajal',
+        assister: 'Diego Aguado',
+        minute: 79,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 8: Águilas FC 1 - 2 UD Ibiza
+      {
+        id: 'g-j8-m3-1',
+        matchId: 'j8-m3',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'aguilas-fc',
+        scorer: 'Manu Justo',
+        minute: 74,
+        minuteInterval: '61-75',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m3-2',
+        matchId: 'j8-m3',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'aguilas-fc',
+        scorer: 'Javi Eslava',
+        assister: 'David Astals',
+        minute: 89,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m3-3',
+        matchId: 'j8-m3',
+        teamId: 'aguilas-fc',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Antonio Sánchez',
+        assister: 'Josema Raigal',
+        minute: 97,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 9: AD Alcorcón 3 - 3 UD Ibiza
+      {
+        id: 'g-j9-m6-1',
+        matchId: 'j9-m6',
+        teamId: 'ad-alcorcon',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'M. Berlanga',
+        assister: 'Davo',
+        minute: 5,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j9-m6-2',
+        matchId: 'j9-m6',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'ad-alcorcon',
+        scorer: 'Ander Yoldi',
+        assister: 'David Astals',
+        minute: 28,
+        minuteInterval: '16-30',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j9-m6-3',
+        matchId: 'j9-m6',
+        teamId: 'ad-alcorcon',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'Esteban Aparicio',
+        assister: 'Omar',
+        minute: 43,
+        minuteInterval: '31-45',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j9-m6-4',
+        matchId: 'j9-m6',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'ad-alcorcon',
+        scorer: 'Javi Eslava',
+        minute: 75,
+        minuteInterval: '61-75',
+        scoreBefore: '2-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j9-m6-5',
+        matchId: 'j9-m6',
+        teamId: 'ad-alcorcon',
+        concedingTeamId: 'ud-ibiza',
+        scorer: 'M. Berlanga',
+        minute: 78,
+        minuteInterval: '76-90+',
+        scoreBefore: '2-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j9-m6-6',
+        matchId: 'j9-m6',
+        teamId: 'ud-ibiza',
+        concedingTeamId: 'ad-alcorcon',
+        scorer: 'Pedro Ortiz',
+        minute: 93,
+        minuteInterval: '76-90+',
+        scoreBefore: '3-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 5: Atlético Madrileño 1 - 3 Villarreal B (j5-m1)
+      {
+        id: 'g-j5-m1-1',
+        matchId: 'j5-m1',
+        teamId: 'villarreal-b',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Joselillo Gaitán',
+        assister: 'Nico Barattucci',
+        minute: 23,
+        minuteInterval: '16-30',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j5-m1-2',
+        matchId: 'j5-m1',
+        teamId: 'villarreal-b',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Albert García',
+        minute: 66,
+        minuteInterval: '61-75',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j5-m1-3',
+        matchId: 'j5-m1',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'villarreal-b',
+        scorer: 'D. García',
+        minute: 78,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j5-m1-4',
+        matchId: 'j5-m1',
+        teamId: 'villarreal-b',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'D. Fofana',
+        assister: 'Arnau Forés',
+        minute: 95,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 6: RM Castilla 3 - 2 Atlético Madrileño (j6-m1)
+      {
+        id: 'g-j6-m1-1',
+        matchId: 'j6-m1',
+        teamId: 'rm-castilla',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Ángel Carvajal',
+        assister: 'Mario Rivas',
+        minute: 9,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m1-2',
+        matchId: 'j6-m1',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'rm-castilla',
+        scorer: 'Antal',
+        assister: 'Thiago Helguera',
+        minute: 46,
+        minuteInterval: '31-45',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m1-3',
+        matchId: 'j6-m1',
+        teamId: 'rm-castilla',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Diego Aguado',
+        minute: 61,
+        minuteInterval: '61-75',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m1-4',
+        matchId: 'j6-m1',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'rm-castilla',
+        scorer: 'Koke Mota',
+        minute: 66,
+        minuteInterval: '61-75',
+        scoreBefore: '2-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m1-5',
+        matchId: 'j6-m1',
+        teamId: 'rm-castilla',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Daniel Yáñez',
+        assister: 'Jesús Fortea',
+        minute: 71,
+        minuteInterval: '61-75',
+        scoreBefore: '2-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 7: Atlético Madrileño 4 - 4 Real Zaragoza (j7-m9)
+      {
+        id: 'g-j7-m9-1',
+        matchId: 'j7-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-zaragoza',
+        scorer: 'Issiaka Kamate',
+        assister: 'R. Hueso',
+        minute: 8,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-2',
+        matchId: 'j7-m9',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Edu Espiau',
+        assister: 'Rubén Díez',
+        minute: 24,
+        minuteInterval: '16-30',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-3',
+        matchId: 'j7-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-zaragoza',
+        scorer: 'M. Domènech',
+        assister: 'R. Hueso',
+        minute: 56,
+        minuteInterval: '46-60',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-4',
+        matchId: 'j7-m9',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Rubo',
+        assister: 'Edu Espiau',
+        minute: 67,
+        minuteInterval: '61-75',
+        scoreBefore: '2-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-5',
+        matchId: 'j7-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-zaragoza',
+        scorer: 'M. Gil',
+        assister: 'Álvaro Justo',
+        minute: 76,
+        minuteInterval: '76-90+',
+        scoreBefore: '2-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-6',
+        matchId: 'j7-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-zaragoza',
+        scorer: 'David Muñoz',
+        minute: 88,
+        minuteInterval: '76-90+',
+        scoreBefore: '3-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-7',
+        matchId: 'j7-m9',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Rubo',
+        assister: 'Jaume Jardí',
+        minute: 99,
+        minuteInterval: '76-90+',
+        scoreBefore: '4-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m9-8',
+        matchId: 'j7-m9',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Jaume Jardí',
+        minute: 102,
+        minuteInterval: '76-90+',
+        scoreBefore: '4-3',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 8: Gimnàstic Tarragona 2 - 1 Atlético Madrileño (j8-m7)
+      {
+        id: 'g-j8-m7-1',
+        matchId: 'j8-m7',
+        teamId: 'gimnastic-tarragona',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Joseda',
+        minute: 14,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m7-2',
+        matchId: 'j8-m7',
+        teamId: 'gimnastic-tarragona',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Carlos Segura',
+        assister: 'M. Montalvo',
+        minute: 55,
+        minuteInterval: '46-60',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m7-3',
+        matchId: 'j8-m7',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'gimnastic-tarragona',
+        scorer: 'Koke Mota',
+        minute: 81,
+        minuteInterval: '76-90+',
+        scoreBefore: '2-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 1: Atlético Madrileño 2 - 2 Juventud Torremolinos (j1-m6)
+      {
+        id: 'g-j1-m6-1',
+        matchId: 'j1-m6',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'juventud-torremolinos',
+        scorer: 'M. Domènech',
+        minute: 13,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m6-2',
+        matchId: 'j1-m6',
+        teamId: 'juventud-torremolinos',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'Mati Barboza',
+        minute: 40,
+        minuteInterval: '31-45',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m6-3',
+        matchId: 'j1-m6',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'juventud-torremolinos',
+        scorer: 'M. Domènech',
+        assister: 'Álvaro Santos',
+        minute: 51,
+        minuteInterval: '46-60',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m6-4',
+        matchId: 'j1-m6',
+        teamId: 'juventud-torremolinos',
+        concedingTeamId: 'atletico-madrideno',
+        scorer: 'E. Grozdanic',
+        assister: 'Cristian Rodríguez',
+        minute: 78,
+        minuteInterval: '76-90+',
+        scoreBefore: '2-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 2: Hércules 0 - 2 Atlético Madrileño (j2-m9)
+      {
+        id: 'g-j2-m9-1',
+        matchId: 'j2-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'hercules-alicante',
+        scorer: 'Álvaro Santos',
+        minute: 35,
+        minuteInterval: '31-45',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j2-m9-2',
+        matchId: 'j2-m9',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'hercules-alicante',
+        scorer: 'Issiaka Kamate',
+        assister: 'Álvaro Santos',
+        minute: 96,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 3: Atlético Madrileño 4 - 0 Real Murcia (j3-m10)
+      {
+        id: 'g-j3-m10-1',
+        matchId: 'j3-m10',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-murcia',
+        scorer: 'Álvaro Santos',
+        minute: 13,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m10-2',
+        matchId: 'j3-m10',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-murcia',
+        scorer: 'Miguel Cubo',
+        assister: 'Arnau Solà',
+        minute: 55,
+        minuteInterval: '31-45',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m10-3',
+        matchId: 'j3-m10',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-murcia',
+        scorer: 'Miguel Cubo',
+        assister: 'Thiago Helguera',
+        minute: 52,
+        minuteInterval: '46-60',
+        scoreBefore: '2-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m10-4',
+        matchId: 'j3-m10',
+        teamId: 'atletico-madrideno',
+        concedingTeamId: 'real-murcia',
+        scorer: 'Edgar Alcañiz',
+        minute: 59,
+        minuteInterval: '46-60',
+        scoreBefore: '3-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 1: CE Europa 0 - 3 Real Jaén (j1-m8)
+      {
+        id: 'g-j1-m8-1',
+        matchId: 'j1-m8',
+        teamId: 'real-jaen',
+        concedingTeamId: 'ce-europa',
+        scorer: 'M. Siverio',
+        assister: 'A. Caballero',
+        minute: 63,
+        minuteInterval: '61-75',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m8-2',
+        matchId: 'j1-m8',
+        teamId: 'real-jaen',
+        concedingTeamId: 'ce-europa',
+        scorer: 'M. Siverio',
+        assister: 'Mario Martos',
+        minute: 69,
+        minuteInterval: '61-75',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j1-m8-3',
+        matchId: 'j1-m8',
+        teamId: 'real-jaen',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Moha Keita',
+        assister: 'David Serrano',
+        minute: 76,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-2',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 3: CE Europa 1 - 2 Hércules (j3-m4)
+      {
+        id: 'g-j3-m4-1',
+        matchId: 'j3-m4',
+        teamId: 'hercules-alicante',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Antoñin',
+        assister: 'Víctor Narro',
+        minute: 20,
+        minuteInterval: '16-30',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m4-2',
+        matchId: 'j3-m4',
+        teamId: 'ce-europa',
+        concedingTeamId: 'hercules-alicante',
+        scorer: 'K. Noureddine',
+        assister: 'F. Ribeiro',
+        minute: 67,
+        minuteInterval: '61-75',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j3-m4-3',
+        matchId: 'j3-m4',
+        teamId: 'hercules-alicante',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Fran Sol',
+        assister: 'Jorge Galvañ',
+        minute: 93,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 4: Real Murcia 2 - 1 CE Europa (j4-m2)
+      {
+        id: 'g-j4-m2-1',
+        matchId: 'j4-m2',
+        teamId: 'real-murcia',
+        concedingTeamId: 'ce-europa',
+        scorer: 'V. Morales',
+        assister: 'Adrià Padilla',
+        minute: 46,
+        minuteInterval: '31-45',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j4-m2-2',
+        matchId: 'j4-m2',
+        teamId: 'ce-europa',
+        concedingTeamId: 'real-murcia',
+        scorer: 'Javi Mier',
+        minute: 90,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j4-m2-3',
+        matchId: 'j4-m2',
+        teamId: 'real-murcia',
+        concedingTeamId: 'ce-europa',
+        scorer: 'V. Olmedo',
+        minute: 100,
+        minuteInterval: '76-90+',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 5: CE Europa 1 - 0 Rayo Majadahonda (j5-m6)
+      {
+        id: 'g-j5-m6-1',
+        matchId: 'j5-m6',
+        teamId: 'ce-europa',
+        concedingTeamId: 'rayo-majadahonda',
+        scorer: 'Y. Zayzoun',
+        minute: 94,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 6: SD Huesca 3 - 1 CE Europa (j6-m7)
+      {
+        id: 'g-j6-m7-1',
+        matchId: 'j6-m7',
+        teamId: 'sd-huesca',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Luismi Redondo',
+        minute: 30,
+        minuteInterval: '16-30',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m7-2',
+        matchId: 'j6-m7',
+        teamId: 'sd-huesca',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Luismi Redondo',
+        minute: 47,
+        minuteInterval: '31-45',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m7-3',
+        matchId: 'j6-m7',
+        teamId: 'sd-huesca',
+        concedingTeamId: 'ce-europa',
+        scorer: 'C. Herrera',
+        assister: 'Douglas Aurélio',
+        minute: 89,
+        minuteInterval: '76-90+',
+        scoreBefore: '2-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j6-m7-4',
+        matchId: 'j6-m7',
+        teamId: 'ce-europa',
+        concedingTeamId: 'sd-huesca',
+        scorer: 'Gori Gracia',
+        minute: 94,
+        minuteInterval: '76-90+',
+        scoreBefore: '3-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 7: CE Europa 2 - 1 Algeciras CF (j7-m7)
+      {
+        id: 'g-j7-m7-1',
+        matchId: 'j7-m7',
+        teamId: 'algeciras-cf',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Ó. Castro',
+        minute: 4,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m7-2',
+        matchId: 'j7-m7',
+        teamId: 'ce-europa',
+        concedingTeamId: 'algeciras-cf',
+        scorer: 'K. Noureddine',
+        assister: 'Enol Coto',
+        minute: 16,
+        minuteInterval: '16-30',
+        scoreBefore: '0-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j7-m7-3',
+        matchId: 'j7-m7',
+        teamId: 'ce-europa',
+        concedingTeamId: 'algeciras-cf',
+        scorer: 'Álex Cano',
+        minute: 46,
+        minuteInterval: '46-60',
+        scoreBefore: '1-1',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 8: FC Cartagena 3 - 0 CE Europa (j8-m1)
+      {
+        id: 'g-j8-m1-1',
+        matchId: 'j8-m1',
+        teamId: 'fc-cartagena',
+        concedingTeamId: 'ce-europa',
+        scorer: 'P. De Blasis',
+        assister: 'Nacho Martínez',
+        minute: 12,
+        minuteInterval: '0-15',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m1-2',
+        matchId: 'j8-m1',
+        teamId: 'fc-cartagena',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Marcos Moreno',
+        assister: 'Ibán Ribeiro',
+        minute: 52,
+        minuteInterval: '46-60',
+        scoreBefore: '1-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      {
+        id: 'g-j8-m1-3',
+        matchId: 'j8-m1',
+        teamId: 'fc-cartagena',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Marcos Moreno',
+        minute: 54,
+        minuteInterval: '46-60',
+        scoreBefore: '2-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+      // Jornada 9: CE Europa 0 - 1 Real Zaragoza (j9-m1)
+      {
+        id: 'g-j9-m1-1',
+        matchId: 'j9-m1',
+        teamId: 'real-zaragoza',
+        concedingTeamId: 'ce-europa',
+        scorer: 'Álex Cano (p.p.)',
+        minute: 80,
+        minuteInterval: '76-90+',
+        scoreBefore: '0-0',
+        tacticalPhase: 'PENDIENTE',
+        tacticalSubtype: 'Sin definir',
+      },
+    ];
+
+    function App() {
+      // Empty default data ready for user input
+      const [matches, setMatches] = useState(() => {
+        try {
+          const saved = localStorage.getItem('app_europa_matches_v4');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        } catch(e) {}
+        return OFFICIAL_LEAGUE_MATCHES;
+      });
+
+      const [goals, setGoals] = useState(() => {
+        try {
+          const saved = localStorage.getItem('app_europa_goals_v4');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              const existingIds = new Set(parsed.map(g => g.id));
+              const missing = OFFICIAL_LEAGUE_GOALS.filter(g => !existingIds.has(g.id));
+              return [...parsed, ...missing];
+            }
+          }
+          return OFFICIAL_LEAGUE_GOALS;
+        } catch(e) { return OFFICIAL_LEAGUE_GOALS; }
+      });
+
+      const [activeTab, setActiveTab] = useState('standings');
+      const [selectedTeamId, setSelectedTeamId] = useState('ALL');
+      const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+      const [editingGoal, setEditingGoal] = useState(null);
+      const [isMatchModalOpen, setIsMatchModalOpen] = useState(false);
+      const [selectedMatchForGoal, setSelectedMatchForGoal] = useState('');
+      const [isExporting, setIsExporting] = useState(false);
+      const [exportSuccess, setExportSuccess] = useState(false);
+
+      const cardRef = useRef(null);
+
+      const handleOpenCreateGoal = (matchId) => {
+        setEditingGoal(null);
+        setSelectedMatchForGoal(matchId || (matches[0] ? matches[0].id : ''));
+        setIsGoalModalOpen(true);
+      };
+
+      const handleOpenEditGoal = (goal) => {
+        setEditingGoal(goal);
+        setSelectedMatchForGoal(goal.matchId);
+        setIsGoalModalOpen(true);
+      };
+
+      // Save to localStorage
+      useEffect(() => {
+        localStorage.setItem('app_europa_matches_v4', JSON.stringify(matches));
+      }, [matches]);
+
+      useEffect(() => {
+        localStorage.setItem('app_europa_goals_v4', JSON.stringify(goals));
+      }, [goals]);
+
+      // Native html2canvas PNG export
+      const downloadCardAsPng = async () => {
+        if (!cardRef.current) return;
+        try {
+          setIsExporting(true);
+          await new Promise((r) => setTimeout(r, 150));
+          const canvas = await html2canvas(cardRef.current, {
+            scale: 2,
+            backgroundColor: '#030712',
+            useCORS: true,
+          });
+          const link = document.createElement('a');
+          link.href = canvas.toDataURL('image/png');
+          link.download = `Ficha_Tactica_${selectedTeamId !== 'ALL' ? selectedTeamId : 'Liga'}.png`;
+          link.click();
+          setExportSuccess(true);
+          setTimeout(() => setExportSuccess(false), 4000);
+        } catch (err) {
+          alert('Error al generar la imagen con html2canvas: ' + err.message);
+        } finally {
+          setIsExporting(false);
+        }
+      };
+
+      // Standings calculation
+      const standings = LEAGUE_TEAMS.map((team) => {
+        let played = 0, won = 0, drawn = 0, lost = 0, gf = 0, gc = 0;
+        matches.forEach((m) => {
+          if (m.homeTeamId === team.id) {
+            played++; gf += m.homeScore; gc += m.awayScore;
+            if (m.homeScore > m.awayScore) won++;
+            else if (m.homeScore === m.awayScore) drawn++;
+            else lost++;
+          } else if (m.awayTeamId === team.id) {
+            played++; gf += m.awayScore; gc += m.homeScore;
+            if (m.awayScore > m.homeScore) won++;
+            else if (m.awayScore === m.homeScore) drawn++;
+            else lost++;
+          }
+        });
+        const pts = won * 3 + drawn;
+        const gd = gf - gc;
+        return { team, played, won, drawn, lost, gf, gc, gd, pts };
+      });
+      standings.sort((a, b) => b.pts !== a.pts ? b.pts - a.pts : b.gd - a.gd);
+
+      const targetTeam = selectedTeamId !== 'ALL' ? getTeam(selectedTeamId) : LEAGUE_TEAMS[11];
+      const targetGoals = selectedTeamId !== 'ALL' ? goals.filter(g => g.teamId === selectedTeamId) : goals;
+
+      return (
+        <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+          
+          {/* HEADER */}
+          <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/95 backdrop-blur">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shadow-lg">
+                  20
+                </div>
+                <div>
+                  <h1 className="text-base font-bold text-white flex items-center gap-2">
+                    Liga Tactical Hub <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">20 Clubes</span>
+                  </h1>
+                  <p className="text-xs text-slate-400">Captura de goles tácticos de todos los equipos • app_europa.html</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={selectedTeamId}
+                  onChange={(e) => setSelectedTeamId(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white cursor-pointer"
+                >
+                  <option value="ALL">🌐 Todos los Equipos</option>
+                  {LEAGUE_TEAMS.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+
+                <button
+                  onClick={() => {
+                    if (matches.length === 0) {
+                      alert('Primero registra un partido para poder añadirle goles.');
+                      setIsMatchModalOpen(true);
+                      return;
+                    }
+                    setSelectedMatchForGoal(matches[0]?.id || '');
+                    setIsGoalModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+                >
+                  + Registrar Gol
+                </button>
+
+                <button
+                  onClick={() => setIsMatchModalOpen(true)}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+                >
+                  + Jornada
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (confirm('¿Vaciar todos los partidos y goles introducidos?')) {
+                      setMatches([]);
+                      setGoals([]);
+                    }
+                  }}
+                  title="Vaciar datos"
+                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-800 cursor-pointer"
+                >
+                  🗑
+                </button>
+              </div>
+            </div>
+
+            {/* TABS */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-6 text-xs font-medium border-t border-slate-800/80 -mb-px overflow-x-auto">
+              <button
+                onClick={() => setActiveTab('standings')}
+                className={`py-3 border-b-2 transition cursor-pointer whitespace-nowrap ${
+                  activeTab === 'standings' ? 'border-blue-500 text-blue-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Clasificación de Liga (20 Equipos)
+              </button>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className={`py-3 border-b-2 transition cursor-pointer whitespace-nowrap ${
+                  activeTab === 'dashboard' ? 'border-blue-500 text-blue-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Análisis Táctico {selectedTeamId !== 'ALL' ? `(${targetTeam.shortName})` : ''}
+              </button>
+              <button
+                onClick={() => setActiveTab('matches')}
+                className={`py-3 border-b-2 transition cursor-pointer whitespace-nowrap ${
+                  activeTab === 'matches' ? 'border-blue-500 text-blue-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Jornadas y Partidos ({matches.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('card')}
+                className={`py-3 border-b-2 transition cursor-pointer whitespace-nowrap ${
+                  activeTab === 'card' ? 'border-blue-500 text-blue-400 font-bold' : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Tarjeta Táctica (html2canvas PNG)
+              </button>
+            </div>
+          </header>
+
+          {/* MAIN CONTENT */}
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+            
+            {matches.length === 0 && (
+              <div className="mb-6 p-6 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Base de datos lista para introducir tus datos</h3>
+                  <p className="text-xs text-slate-400 mt-1">Los 20 equipos de tu liga están cargados. Pulsa "+ Jornada" para empezar.</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setMatches(OFFICIAL_LEAGUE_MATCHES)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+                  >
+                    Restaurar 90 Partidos (J1-J9)
+                  </button>
+                  <button
+                    onClick={() => setIsMatchModalOpen(true)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+                  >
+                    + Registrar Partido
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 1: STANDINGS */}
+            {activeTab === 'standings' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-3xl bg-slate-900 border border-slate-800 overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-slate-500 text-[10px] uppercase font-bold">
+                        <th className="py-2.5 px-3 text-center">Pos</th>
+                        <th className="py-2.5 px-3">Equipo</th>
+                        <th className="text-center">PJ</th>
+                        <th className="text-center">V</th>
+                        <th className="text-center">E</th>
+                        <th className="text-center">D</th>
+                        <th className="text-center">GF</th>
+                        <th className="text-center">GC</th>
+                        <th className="text-center">DG</th>
+                        <th className="text-center font-bold">PTS</th>
+                        <th className="text-center">Táctica</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 font-mono">
+                      {standings.map((row, idx) => (
+                        <tr key={row.team.id} className="hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
+                          <td className="py-2.5 px-3 font-sans font-bold text-white flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: row.team.color }} />
+                            <span>{row.team.name}</span>
+                          </td>
+                          <td className="text-center">{row.played}</td>
+                          <td className="text-center text-emerald-400 font-bold">{row.won}</td>
+                          <td className="text-center text-amber-400 font-bold">{row.drawn}</td>
+                          <td className="text-center text-rose-400 font-bold">{row.lost}</td>
+                          <td className="text-center text-emerald-400">{row.gf}</td>
+                          <td className="text-center text-rose-400">{row.gc}</td>
+                          <td className="text-center text-slate-300">{row.gd > 0 ? `+${row.gd}` : row.gd}</td>
+                          <td className="text-center font-bold text-blue-400 text-sm">{row.pts}</td>
+                          <td className="text-center font-sans">
+                            <button
+                              onClick={() => { setSelectedTeamId(row.team.id); setActiveTab('dashboard'); }}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white text-[10px] font-semibold"
+                            >
+                              Ver
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: TACTICAL DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Goles Catalogados</span>
+                    <div className="text-2xl font-black text-emerald-400">{targetGoals.length}</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Goles ABP</span>
+                    <div className="text-2xl font-black text-amber-400">{targetGoals.filter(g => g.tacticalPhase === 'ABP').length}</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Ataque Posicional</span>
+                    <div className="text-2xl font-black text-blue-400">{targetGoals.filter(g => g.tacticalPhase === 'POSICIONAL').length}</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Contra & Vertical</span>
+                    <div className="text-2xl font-black text-rose-400">{targetGoals.filter(g => g.tacticalPhase === 'CONTRAATAQUE' || g.tacticalPhase === 'VERTICAL').length}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-white">Goles por Fase Táctica</h3>
+                    <div className="space-y-2">
+                      {Object.keys(TACTICAL_CATEGORIES).map((key) => {
+                        const count = targetGoals.filter(g => g.tacticalPhase === key).length;
+                        const pct = targetGoals.length > 0 ? Math.round((count / targetGoals.length) * 100) : 0;
+                        return (
+                          <div key={key} className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span>{TACTICAL_CATEGORIES[key].name}</span>
+                              <span className="font-mono text-white font-bold">{count} ({pct}%)</span>
+                            </div>
+                            <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden">
+                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-white">Goles por Tramos de Minutos</h3>
+                    <div className="space-y-2">
+                      {MINUTE_INTERVALS.map((int) => {
+                        const count = targetGoals.filter(g => g.minuteInterval === int.key).length;
+                        return (
+                          <div key={int.key} className="flex items-center gap-3 text-xs">
+                            <span className="w-16 font-mono text-slate-400">{int.label}</span>
+                            <div className="flex-1 h-3 bg-slate-950 rounded overflow-hidden">
+                              <div style={{ width: `${count * 25}%` }} className="bg-blue-500 h-full" />
+                            </div>
+                            <span className="font-mono text-white">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: MATCHES & GOALS */}
+            {activeTab === 'matches' && (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-wider text-white">Partidos y Goles de la Liga</h2>
+                    <p className="text-xs text-slate-400">
+                      Gestiona los resultados y modifica cualquier gol registrado (minuto, tipo de gol, goleador...)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenCreateGoal()}
+                      className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-sm transition"
+                    >
+                      + Registrar Gol
+                    </button>
+                    <button
+                      onClick={() => setIsMatchModalOpen(true)}
+                      className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white cursor-pointer shadow-sm transition"
+                    >
+                      + Nuevo Partido
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {matches.map((m) => {
+                    const ht = getTeam(m.homeTeamId);
+                    const at = getTeam(m.awayTeamId);
+                    const matchGoals = goals.filter(g => g.matchId === m.id);
+                    return (
+                      <div key={m.id} className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3 hover:border-slate-700 transition">
+                        <div className="flex justify-between items-center flex-wrap gap-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] text-blue-400 font-bold px-2 py-0.5 rounded bg-blue-950/60 border border-blue-800/40">
+                                Jornada {m.jornada}
+                              </span>
+                              <span className="text-xs text-slate-400">{m.date} • {m.stadium}</span>
+                            </div>
+                            <div className="text-base font-bold text-white mt-1 flex items-center gap-3">
+                              <span style={{ color: ht.color }}>{ht.name}</span>
+                              <span className="px-2.5 py-0.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-sm">
+                                <span className="text-blue-400 font-bold">{m.homeScore}</span> - <span className="text-indigo-400 font-bold">{m.awayScore}</span>
+                              </span>
+                              <span style={{ color: at.color }}>{at.name}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenCreateGoal(m.id)}
+                              className="px-3 py-1.5 text-xs font-bold rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 transition cursor-pointer"
+                            >
+                              + Añadir Gol
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`¿Eliminar el partido Jornada ${m.jornada} (${ht.shortName} vs ${at.shortName}) y sus goles?`)) {
+                                  setMatches(matches.filter(x => x.id !== m.id));
+                                  setGoals(goals.filter(x => x.matchId !== m.id));
+                                }
+                              }}
+                              className="text-slate-500 hover:text-rose-400 text-xs p-1.5 rounded-lg hover:bg-rose-950/30 transition cursor-pointer"
+                              title="Eliminar partido"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* List of goals inside the match */}
+                        {matchGoals.length > 0 ? (
+                          <div className="pt-2.5 border-t border-slate-800/80 space-y-1.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Goles de este encuentro ({matchGoals.length}):
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {matchGoals.map((g) => {
+                                const team = getTeam(g.teamId);
+                                return (
+                                  <div
+                                    key={g.id}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition"
+                                  >
+                                    <span className="font-mono text-emerald-400 font-extrabold text-xs">
+                                      {g.minute}'
+                                    </span>
+                                    <span className="text-xs font-bold text-white">
+                                      {g.scorer}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400">
+                                      ({team.shortName})
+                                    </span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                                      g.tacticalPhase === 'PENDIENTE'
+                                        ? 'bg-amber-950/80 text-amber-300 border-amber-600/40'
+                                        : 'bg-blue-950/80 text-blue-300 border-blue-800/40'
+                                    }`}>
+                                      {g.tacticalPhase === 'PENDIENTE' ? '⚠️ Asignar tipo' : `${g.tacticalPhase} • ${g.tacticalSubtype}`}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditGoal(g)}
+                                      className="ml-1 px-2 py-0.5 text-[11px] font-bold rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 transition cursor-pointer"
+                                      title="Modificar minuto o datos de este gol"
+                                    >
+                                      ✏️ Modificar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (confirm(`¿Eliminar el gol de ${g.scorer} (minuto ${g.minute})?`)) {
+                                          setGoals(goals.filter(x => x.id !== g.id));
+                                        }
+                                      }}
+                                      className="text-slate-500 hover:text-rose-400 text-xs px-1 hover:bg-rose-950/40 rounded transition cursor-pointer"
+                                      title="Eliminar gol"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : m.homeScore + m.awayScore > 0 ? (
+                          <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 flex-wrap">
+                            <span>⚠️ Resultado {m.homeScore}-{m.awayScore}: Faltan por catalogar los goleadores y tipo.</span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenCreateGoal(m.id, ht.id)}
+                                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-600/30 hover:bg-blue-600 text-blue-200 border border-blue-500/40 transition cursor-pointer"
+                              >
+                                + Gol {ht.shortName}
+                              </button>
+                              <button
+                                onClick={() => handleOpenCreateGoal(m.id, at.id)}
+                                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 transition cursor-pointer"
+                              >
+                                + Gol {at.shortName}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-500 italic pt-1">
+                            Sin goles catalogados aún para este encuentro.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: CARD EXPORT */}
+            {activeTab === 'card' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center p-4 rounded-2xl bg-slate-900 border border-slate-800">
+                  <h2 className="text-sm font-bold text-white">Ficha Táctica para Exportar en PNG</h2>
+                  <button
+                    onClick={downloadCardAsPng}
+                    disabled={isExporting}
+                    className="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white cursor-pointer"
+                  >
+                    {isExporting ? 'Generando...' : 'Descargar Tarjeta (PNG)'}
+                  </button>
+                </div>
+
+                {exportSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-950 text-emerald-300 text-xs font-bold text-center">
+                    ✓ Imagen descargada correctamente con html2canvas.
+                  </div>
+                )}
+
+                <div className="overflow-x-auto pb-6">
+                  <div ref={cardRef} className="w-full min-w-[650px] max-w-2xl mx-auto p-6 rounded-3xl bg-slate-950 border-2 border-slate-800 text-white space-y-4">
+                    <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+                      <div>
+                        <div className="text-base font-black uppercase">{targetTeam.name}</div>
+                        <div className="text-xs text-blue-400 font-bold">INFORME TÁCTICO OFICIAL</div>
+                      </div>
+                      <div className="text-xs text-slate-400 font-mono">20 EQUIPOS</div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-2 rounded bg-slate-900">Goles Favor: <strong className="text-emerald-400">{targetGoals.length}</strong></div>
+                      <div className="p-2 rounded bg-slate-900">Fase ABP: <strong className="text-amber-400">{targetGoals.filter(g => g.tacticalPhase === 'ABP').length}</strong></div>
+                      <div className="p-2 rounded bg-slate-900">Posicional: <strong className="text-blue-400">{targetGoals.filter(g => g.tacticalPhase === 'POSICIONAL').length}</strong></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* GOAL MODAL (CREATE OR EDIT) */}
+          {isGoalModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+              <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 my-8 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <div>
+                    <h3 className="font-bold text-base text-white">
+                      {editingGoal ? 'Modificar Gol Registrado' : 'Registrar Gol Táctico'}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {editingGoal
+                        ? `Modifica el minuto, fase táctica o goleador (Gol ID: ${editingGoal.id})`
+                        : 'Introduce los detalles técnicos y el minuto exacto del gol'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingGoal(null);
+                      setIsGoalModalOpen(false);
+                    }}
+                    className="text-slate-400 hover:text-white text-lg p-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  const match = matches.find(m => m.id === form.matchId.value);
+                  const scorerTeamId = form.teamId.value;
+                  const concedingTeamId = match ? (scorerTeamId === match.homeTeamId ? match.awayTeamId : match.homeTeamId) : '';
+                  const numMinute = Number(form.minute.value) || 1;
+
+                  if (editingGoal) {
+                    // Update existing goal
+                    const updatedGoal = {
+                      ...editingGoal,
+                      matchId: form.matchId.value,
+                      teamId: scorerTeamId,
+                      concedingTeamId,
+                      scorer: form.scorer.value.trim() || 'Goleador',
+                      minute: numMinute,
+                      minuteInterval: form.minuteInterval.value,
+                      tacticalPhase: form.tacticalPhase.value,
+                      tacticalSubtype: form.tacticalSubtype.value,
+                    };
+
+                    setGoals(goals.map(g => g.id === editingGoal.id ? updatedGoal : g));
+                  } else {
+                    // Create new goal
+                    const newGoal = {
+                      id: `g-${Date.now()}`,
+                      matchId: form.matchId.value,
+                      teamId: scorerTeamId,
+                      concedingTeamId,
+                      scorer: form.scorer.value.trim() || 'Goleador',
+                      minute: numMinute,
+                      minuteInterval: form.minuteInterval.value,
+                      tacticalPhase: form.tacticalPhase.value,
+                      tacticalSubtype: form.tacticalSubtype.value,
+                    };
+
+                    setGoals([...goals, newGoal]);
+                    // Update score if new
+                    if (match) {
+                      setMatches(matches.map(m => m.id === match.id ? {
+                        ...m,
+                        homeScore: scorerTeamId === m.homeTeamId ? m.homeScore + 1 : m.homeScore,
+                        awayScore: scorerTeamId === m.awayTeamId ? m.awayScore + 1 : m.awayScore,
+                      } : m));
+                    }
+                  }
+
+                  setEditingGoal(null);
+                  setIsGoalModalOpen(false);
+                }} className="space-y-4 text-xs">
+                  
+                  {editingGoal && (
+                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-600/30 text-blue-200 text-xs flex items-center justify-between">
+                      <span>✏️ Modo edición activo. Modifica minuto, fase táctica o goleador.</span>
+                      <span className="font-mono font-bold text-[11px] text-blue-300">Min: {editingGoal.minute}'</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Partido de Liga</label>
+                    <select
+                      name="matchId"
+                      defaultValue={editingGoal ? editingGoal.matchId : (selectedMatchForGoal || (matches[0] && matches[0].id))}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                      onChange={(e) => {
+                        const m = matches.find(x => x.id === e.target.value);
+                        if (m) {
+                          const sel = document.getElementById('goalTeamSel');
+                          if (sel) {
+                            sel.innerHTML = `<option value="${m.homeTeamId}">${getTeam(m.homeTeamId).name} (Local)</option><option value="${m.awayTeamId}">${getTeam(m.awayTeamId).name} (Visitante)</option>`;
+                          }
+                        }
+                      }}
+                    >
+                      {matches.map(m => (
+                        <option key={m.id} value={m.id}>
+                          Jornada {m.jornada}: {getTeam(m.homeTeamId).name} vs {getTeam(m.awayTeamId).name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Equipo Autor del Gol</label>
+                    <select
+                      id="goalTeamSel"
+                      name="teamId"
+                      defaultValue={editingGoal ? editingGoal.teamId : (matches[0] ? matches[0].homeTeamId : '')}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                    >
+                      {(() => {
+                        const activeMatch = matches.find(m => m.id === (editingGoal ? editingGoal.matchId : selectedMatchForGoal)) || matches[0];
+                        if (!activeMatch) return null;
+                        return (
+                          <>
+                            <option value={activeMatch.homeTeamId}>{getTeam(activeMatch.homeTeamId).name} (Local)</option>
+                            <option value={activeMatch.awayTeamId}>{getTeam(activeMatch.awayTeamId).name} (Visitante)</option>
+                          </>
+                        );
+                      })()}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Goleador *</label>
+                      <input
+                        name="scorer"
+                        required
+                        defaultValue={editingGoal ? editingGoal.scorer : ''}
+                        placeholder="Nombre del goleador"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Minuto de Juego (1 - 130)</label>
+                      <input
+                        name="minute"
+                        type="number"
+                        min="1"
+                        max="130"
+                        required
+                        defaultValue={editingGoal ? editingGoal.minute : 35}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white font-mono font-bold text-sm text-emerald-400"
+                        onChange={(e) => {
+                          const min = Number(e.target.value);
+                          const intSel = document.getElementById('intervalSel');
+                          if (intSel && min > 0) {
+                            if (min <= 15) intSel.value = 'M1_15';
+                            else if (min <= 30) intSel.value = 'M16_30';
+                            else if (min <= 45) intSel.value = 'M31_45';
+                            else if (min <= 60) intSel.value = 'M46_60';
+                            else if (min <= 75) intSel.value = 'M61_75';
+                            else intSel.value = 'M76_90';
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Tramo de Minutos</label>
+                      <select
+                        id="intervalSel"
+                        name="minuteInterval"
+                        defaultValue={editingGoal ? editingGoal.minuteInterval : 'M31_45'}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                      >
+                        {MINUTE_INTERVALS.map(i => (
+                          <option key={i.key} value={i.key}>{i.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Fase Táctica (5 Tipos)</label>
+                      <select
+                        name="tacticalPhase"
+                        defaultValue={editingGoal ? editingGoal.tacticalPhase : 'DIRECTO'}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                        onChange={(e) => {
+                          const phase = e.target.value;
+                          const sel = document.getElementById('subSel');
+                          if (sel && TACTICAL_CATEGORIES[phase]) {
+                            sel.innerHTML = '';
+                            TACTICAL_CATEGORIES[phase].subtypes.forEach(s => {
+                              const opt = document.createElement('option');
+                              opt.value = s;
+                              opt.text = s;
+                              sel.appendChild(opt);
+                            });
+                          }
+                        }}
+                      >
+                        {Object.keys(TACTICAL_CATEGORIES).map(k => (
+                          <option key={k} value={k}>{TACTICAL_CATEGORIES[k].name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Subtipo Táctico</label>
+                    <select
+                      id="subSel"
+                      name="tacticalSubtype"
+                      defaultValue={editingGoal ? editingGoal.tacticalSubtype : (TACTICAL_CATEGORIES.DIRECTO.subtypes[0])}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"
+                    >
+                      {(() => {
+                        const activePhase = editingGoal ? editingGoal.tacticalPhase : 'DIRECTO';
+                        const cat = TACTICAL_CATEGORIES[activePhase] || TACTICAL_CATEGORIES.DIRECTO;
+                        return cat.subtypes.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingGoal(null);
+                        setIsGoalModalOpen(false);
+                      }}
+                      className="px-4 py-2 rounded-xl text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white cursor-pointer shadow-lg transition"
+                    >
+                      {editingGoal ? 'Guardar Modificaciones' : 'Guardar Gol'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MATCH MODAL */}
+          {isMatchModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+              <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 my-8">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-base">Registrar Partido de Liga</h3>
+                  <button onClick={() => setIsMatchModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  if (form.homeTeamId.value === form.awayTeamId.value) {
+                    alert('El equipo local y visitante no pueden ser el mismo');
+                    return;
+                  }
+                  const newMatch = {
+                    id: `m-${Date.now()}`,
+                    jornada: Number(form.jornada.value),
+                    date: form.date.value,
+                    homeTeamId: form.homeTeamId.value,
+                    awayTeamId: form.awayTeamId.value,
+                    homeScore: Number(form.homeScore.value),
+                    awayScore: Number(form.awayScore.value),
+                    stadium: getTeam(form.homeTeamId.value).stadium,
+                    firstGoalTeamId: form.firstGoal.value === 'home' ? form.homeTeamId.value : form.firstGoal.value === 'away' ? form.awayTeamId.value : 'NONE',
+                  };
+                  setMatches([...matches, newMatch]);
+                  setIsMatchModalOpen(false);
+                }} className="space-y-4 text-xs">
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Nº Jornada</label>
+                      <input name="jornada" type="number" defaultValue={matches.length + 1} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Fecha</label>
+                      <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Equipo Local</label>
+                      <select name="homeTeamId" defaultValue={LEAGUE_TEAMS[11].id} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                        {LEAGUE_TEAMS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1">Equipo Visitante</label>
+                      <select name="awayTeamId" defaultValue={LEAGUE_TEAMS[2].id} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                        {LEAGUE_TEAMS.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">Goles Local</label>
+                      <input name="homeScore" type="number" defaultValue="0" min="0" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-center text-sm font-bold text-blue-400" />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1">Goles Visitante</label>
+                      <input name="awayScore" type="number" defaultValue="0" min="0" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-center text-sm font-bold text-indigo-400" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">Primer Gol</label>
+                    <select name="firstGoal" className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-white">
+                      <option value="home">Equipo Local</option>
+                      <option value="away">Equipo Visitante</option>
+                      <option value="none">Sin goles (0-0)</option>
+                    </select>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                    <button type="button" onClick={() => setIsMatchModalOpen(false)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white">Cancelar</button>
+                    <button type="submit" className="px-5 py-2 rounded-lg font-bold bg-blue-600 text-white">Guardar Partido</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          <footer className="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+            Liga Tactical Hub • 20 Clubes Oficiales • app_europa.html
+          </footer>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

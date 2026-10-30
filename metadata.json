@@ -1,0 +1,6 @@
+{
+  "name": "Europa Tactical Analytics - Goles y Jornadas",
+  "description": "Herramienta táctica completa de fútbol para registro detallado de goles (ABP, posicional, vertical, directo), análisis por tramos de minutos, métricas de local/visitante, remontadas y exportación de tarjetas en PNG.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
