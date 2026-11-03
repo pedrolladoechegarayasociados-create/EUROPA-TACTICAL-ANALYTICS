@@ -31,7 +31,9 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          const existingIds = new Set(parsed.map((m: Match) => m.id));
+          const missing = INITIAL_MATCHES.filter((m) => !existingIds.has(m.id));
+          return [...parsed, ...missing];
         }
       }
       return INITIAL_MATCHES;
