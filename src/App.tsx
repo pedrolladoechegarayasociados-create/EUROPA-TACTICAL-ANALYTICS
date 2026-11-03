@@ -125,11 +125,12 @@ export default function App() {
     }
   };
 
-  // Restore the 90 official matches extracted from the user's screenshots
+  // Restore the 95 official matches extracted from the user's screenshots
   const handleRestoreOfficialMatches = () => {
-    if (confirm('¿Cargar las 9 jornadas oficiales (90 partidos) registradas a partir de tus actas?')) {
+    if (confirm('¿Cargar las 10 jornadas oficiales (95 partidos) registradas a partir de tus actas?')) {
       setMatches(INITIAL_MATCHES);
-      showToast('90 partidos oficiales (Jornadas 1 a 9) cargados.');
+      setGoals(INITIAL_GOALS);
+      showToast('95 partidos oficiales (Jornadas 1 a 10) cargados.');
     }
   };
 
@@ -286,7 +287,7 @@ export default function App() {
                 onClick={handleRestoreOfficialMatches}
                 className="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
               >
-                Restaurar 90 Partidos Oficiales (J1-J9)
+                Restaurar 95 Partidos Oficiales (J1-J10)
               </button>
               <button
                 onClick={handleOpenNewMatch}
