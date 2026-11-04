@@ -21,6 +21,7 @@ import {
   saveGoalToSupabase,
 } from '../lib/supabase';
 import { Match, Goal } from '../types/football';
+import { INITIAL_MATCHES, INITIAL_GOALS } from '../data/initialData';
 
 interface SupabaseModalProps {
   isOpen: boolean;
@@ -98,8 +99,16 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
     setIsSyncing(false);
 
     if (remoteMatches) {
-      onDataSynced(remoteMatches, remoteGoals || []);
-      showToast(`¡Descargados ${remoteMatches.length} partidos y ${(remoteGoals || []).length} goles de Supabase!`);
+      const remoteIds = new Set(remoteMatches.map((m) => m.id));
+      const missingOfficial = INITIAL_MATCHES.filter((m) => !remoteIds.has(m.id));
+      const mergedMatches = [...remoteMatches, ...missingOfficial];
+
+      const remoteGoalIds = new Set((remoteGoals || []).map((g) => g.id));
+      const missingOfficialGoals = INITIAL_GOALS.filter((g) => !remoteGoalIds.has(g.id));
+      const mergedGoals = [...(remoteGoals || []), ...missingOfficialGoals];
+
+      onDataSynced(mergedMatches, mergedGoals);
+      showToast(`¡Sincronizados ${mergedMatches.length} partidos (J1 a J10) y ${mergedGoals.length} goles!`);
     } else {
       alert('No se pudieron descargar los datos. Verifica la conexión y que las tablas existan.');
     }

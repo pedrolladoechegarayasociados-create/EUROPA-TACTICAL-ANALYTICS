@@ -260,6 +260,48 @@ export const MatchesList: React.FC<MatchesListProps> = ({
         </div>
       </div>
 
+      {/* Quick Jornadas Pills */}
+      {viewMode === 'matches' && (
+        <div className="flex items-center gap-1.5 overflow-x-auto p-2 rounded-2xl bg-slate-900/60 border border-slate-800/80">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-2 whitespace-nowrap">
+            Jornadas:
+          </span>
+          <button
+            type="button"
+            onClick={() => setJornadaFilter('ALL')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              jornadaFilter === 'ALL'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-slate-950 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            Todas ({matches.length})
+          </button>
+          {jornadasList.map((j) => {
+            const count = matches.filter((m) => m.jornada === j).length;
+            const isJ10 = j === 10;
+            const isSelected = jornadaFilter === String(j);
+            return (
+              <button
+                key={j}
+                type="button"
+                onClick={() => setJornadaFilter(String(j))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400'
+                    : isJ10
+                    ? 'bg-amber-950/80 text-amber-300 border border-amber-600/60 hover:bg-amber-900/80'
+                    : 'bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800'
+                }`}
+              >
+                <span>J{j}</span>
+                <span className="text-[10px] opacity-75">({count})</span>
+                {isJ10 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* VIEW 1: GOALS TABLE */}
       {viewMode === 'goals' && (

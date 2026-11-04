@@ -83,12 +83,33 @@ export default function App() {
     if (supabaseConfig.isConfigured) {
       fetchMatchesFromSupabase().then((remoteMatches) => {
         if (remoteMatches && remoteMatches.length > 0) {
-          setMatches(remoteMatches);
+          const remoteIds = new Set(remoteMatches.map((m) => m.id));
+          const missingOfficial = INITIAL_MATCHES.filter((m) => !remoteIds.has(m.id));
+          const mergedMatches = [...remoteMatches, ...missingOfficial];
+          setMatches(mergedMatches);
+
+          // If Supabase was missing any official matches (like Jornada 10), upload them automatically
+          if (missingOfficial.length > 0) {
+            missingOfficial.forEach((m) => {
+              saveMatchToSupabase(m);
+            });
+          }
         }
       });
+
       fetchGoalsFromSupabase().then((remoteGoals) => {
         if (remoteGoals && remoteGoals.length > 0) {
-          setGoals(remoteGoals);
+          const remoteGoalIds = new Set(remoteGoals.map((g) => g.id));
+          const missingOfficialGoals = INITIAL_GOALS.filter((g) => !remoteGoalIds.has(g.id));
+          const mergedGoals = [...remoteGoals, ...missingOfficialGoals];
+          setGoals(mergedGoals);
+
+          // If Supabase was missing any official goals, upload them automatically
+          if (missingOfficialGoals.length > 0) {
+            missingOfficialGoals.forEach((g) => {
+              saveGoalToSupabase(g);
+            });
+          }
         }
       });
     }
@@ -296,6 +317,47 @@ export default function App() {
                 + Registrar Partido
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Banner if Jornada 10 is missing from local state / Supabase */}
+        {!matches.some((m) => m.jornada === 10) && matches.length > 0 && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">⚡</span>
+              <div>
+                <h4 className="text-xs font-bold text-amber-200">
+                  ¡Jornada 10 disponible para incorporar!
+                </h4>
+                <p className="text-[11px] text-amber-300/80">
+                  Tienes cargadas hasta la Jornada 9 ({matches.length} partidos). Pulsa aquí para añadir los 5 partidos oficiales y 13 goles de la Jornada 10.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                const j10Matches = INITIAL_MATCHES.filter((m) => m.jornada === 10);
+                const j10Goals = INITIAL_GOALS.filter((g) => g.matchId.startsWith('j10-'));
+                setMatches((prev) => {
+                  const existingIds = new Set(prev.map((m) => m.id));
+                  const toAdd = j10Matches.filter((m) => !existingIds.has(m.id));
+                  return [...prev, ...toAdd];
+                });
+                setGoals((prev) => {
+                  const existingGoalIds = new Set(prev.map((g) => g.id));
+                  const toAdd = j10Goals.filter((g) => !existingGoalIds.has(g.id));
+                  return [...prev, ...toAdd];
+                });
+                if (isSupabaseConnected) {
+                  j10Matches.forEach((m) => saveMatchToSupabase(m));
+                  j10Goals.forEach((g) => saveGoalToSupabase(g));
+                }
+                showToast('¡Jornada 10 (5 partidos y 13 goles) añadida con éxito!');
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+            >
+              <span>+ Cargar Jornada 10 Ahora</span>
+            </button>
           </div>
         )}
 
