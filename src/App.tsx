@@ -12,6 +12,7 @@ import { GoalModal } from './components/GoalModal';
 import { MatchModal } from './components/MatchModal';
 import { StandaloneHtmlModal } from './components/StandaloneHtmlModal';
 import { SupabaseModal } from './components/SupabaseModal';
+import { ScanMatchScreenshotModal } from './components/ScanMatchScreenshotModal';
 import {
   getSupabaseConfig,
   saveMatchToSupabase,
@@ -44,13 +45,40 @@ export default function App() {
 
   const [goals, setGoals] = useState<Goal[]>(() => {
     try {
-      const saved = localStorage.getItem('liga_tactical_goals_v4');
+      const saved = localStorage.getItem('liga_tactical_goals_v5');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const existingIds = new Set(parsed.map((g: Goal) => g.id));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const initialMap = new Map(INITIAL_GOALS.map((g) => [g.id, g]));
+          const upgraded = parsed.map((g: Goal) => {
+            const init = initialMap.get(g.id);
+            if (init && (g.tacticalPhase === 'PENDIENTE' || !g.tacticalPhase || g.tacticalSubtype === 'Sin definir')) {
+              return { ...g, tacticalPhase: init.tacticalPhase, tacticalSubtype: init.tacticalSubtype, assister: g.assister || init.assister };
+            }
+            return g;
+          });
+          const existingIds = new Set(upgraded.map((g: Goal) => g.id));
           const missing = INITIAL_GOALS.filter((g) => !existingIds.has(g.id));
-          return [...parsed, ...missing];
+          return [...upgraded, ...missing];
+        }
+      }
+      const v4 = localStorage.getItem('liga_tactical_goals_v4');
+      if (v4) {
+        const parsed = JSON.parse(v4);
+        if (Array.isArray(parsed)) {
+          const initialMap = new Map(INITIAL_GOALS.map((g) => [g.id, g]));
+          const upgraded = parsed.map((g: Goal) => {
+            const init = initialMap.get(g.id);
+            if (init && (g.tacticalPhase === 'PENDIENTE' || !g.tacticalPhase || g.tacticalSubtype === 'Sin definir')) {
+              return { ...g, tacticalPhase: init.tacticalPhase, tacticalSubtype: init.tacticalSubtype, assister: g.assister || init.assister };
+            }
+            return g;
+          });
+          const existingIds = new Set(upgraded.map((g: Goal) => g.id));
+          const missing = INITIAL_GOALS.filter((g) => !existingIds.has(g.id));
+          const full = [...upgraded, ...missing];
+          localStorage.setItem('liga_tactical_goals_v5', JSON.stringify(full));
+          return full;
         }
       }
       return INITIAL_GOALS;
@@ -73,27 +101,23 @@ export default function App() {
 
   const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
   const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const supabaseConfig = getSupabaseConfig();
-  const isSupabaseConnected = supabaseConfig.isConfigured;
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(() => {
+    return getSupabaseConfig().isConfigured;
+  });
 
-  // On mount, if Supabase is configured, fetch remote data
-  useEffect(() => {
-    if (supabaseConfig.isConfigured) {
+  const refreshSupabaseData = () => {
+    const cfg = getSupabaseConfig();
+    setIsSupabaseConnected(cfg.isConfigured);
+    if (cfg.isConfigured) {
       fetchMatchesFromSupabase().then((remoteMatches) => {
         if (remoteMatches && remoteMatches.length > 0) {
           const remoteIds = new Set(remoteMatches.map((m) => m.id));
           const missingOfficial = INITIAL_MATCHES.filter((m) => !remoteIds.has(m.id));
           const mergedMatches = [...remoteMatches, ...missingOfficial];
           setMatches(mergedMatches);
-
-          // If Supabase was missing any official matches (like Jornada 10), upload them automatically
-          if (missingOfficial.length > 0) {
-            missingOfficial.forEach((m) => {
-              saveMatchToSupabase(m);
-            });
-          }
         }
       });
 
@@ -103,17 +127,15 @@ export default function App() {
           const missingOfficialGoals = INITIAL_GOALS.filter((g) => !remoteGoalIds.has(g.id));
           const mergedGoals = [...remoteGoals, ...missingOfficialGoals];
           setGoals(mergedGoals);
-
-          // If Supabase was missing any official goals, upload them automatically
-          if (missingOfficialGoals.length > 0) {
-            missingOfficialGoals.forEach((g) => {
-              saveGoalToSupabase(g);
-            });
-          }
         }
       });
     }
-  }, [supabaseConfig.isConfigured]);
+  };
+
+  // On mount and when config changes, fetch remote data
+  useEffect(() => {
+    refreshSupabaseData();
+  }, []);
 
   // Sync to localStorage
   useEffect(() => {
@@ -126,7 +148,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('liga_tactical_goals_v4', JSON.stringify(goals));
+      localStorage.setItem('liga_tactical_goals_v5', JSON.stringify(goals));
     } catch (e) {
       console.error('Failed to save goals', e);
     }
@@ -263,6 +285,30 @@ export default function App() {
     showToast('Partido eliminado.');
   };
 
+  const handleSaveScannedMatchAndGoals = (newMatch: Match, newGoals: Goal[]) => {
+    setMatches((prev) => {
+      const exists = prev.some((m) => m.id === newMatch.id);
+      if (exists) return prev.map((m) => (m.id === newMatch.id ? newMatch : m));
+      return [...prev, newMatch];
+    });
+    saveMatchToSupabase(newMatch);
+
+    if (newGoals.length > 0) {
+      setGoals((prev) => {
+        const newGoalIds = new Set(newGoals.map((g) => g.id));
+        const filtered = prev.filter((g) => !newGoalIds.has(g.id));
+        return [...filtered, ...newGoals];
+      });
+      newGoals.forEach((g) => saveGoalToSupabase(g));
+    }
+
+    confetti({
+      particleCount: 50,
+      spread: 70,
+      origin: { y: 0.7 },
+    });
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
       {/* Toast Notification */}
@@ -287,6 +333,7 @@ export default function App() {
         onClearData={handleClearData}
         totalMatches={matches.length}
         totalGoals={goals.length}
+        onOpenScanModal={() => setIsScanModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -396,6 +443,7 @@ export default function App() {
             onOpenNewGoalForMatch={(mId, tId) => handleOpenNewGoal(mId, tId)}
             onEditGoal={handleEditGoal}
             onDeleteGoal={handleDeleteGoal}
+            onOpenScanModal={() => setIsScanModalOpen(true)}
           />
         )}
 
@@ -444,6 +492,14 @@ export default function App() {
           setMatches(syncedMatches);
           setGoals(syncedGoals);
         }}
+        showToast={showToast}
+        onConfigSaved={refreshSupabaseData}
+      />
+
+      <ScanMatchScreenshotModal
+        isOpen={isScanModalOpen}
+        onClose={() => setIsScanModalOpen(false)}
+        onSaveMatchAndGoals={handleSaveScannedMatchAndGoals}
         showToast={showToast}
       />
 

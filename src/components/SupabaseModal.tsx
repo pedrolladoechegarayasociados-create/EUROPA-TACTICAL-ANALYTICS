@@ -19,6 +19,8 @@ import {
   fetchGoalsFromSupabase,
   saveMatchToSupabase,
   saveGoalToSupabase,
+  DEFAULT_SUPABASE_URL,
+  DEFAULT_SUPABASE_KEY,
 } from '../lib/supabase';
 import { Match, Goal } from '../types/football';
 import { INITIAL_MATCHES, INITIAL_GOALS } from '../data/initialData';
@@ -30,6 +32,7 @@ interface SupabaseModalProps {
   goals: Goal[];
   onDataSynced: (matches: Match[], goals: Goal[]) => void;
   showToast: (msg: string) => void;
+  onConfigSaved?: () => void;
 }
 
 export const SupabaseModal: React.FC<SupabaseModalProps> = ({
@@ -39,6 +42,7 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   goals,
   onDataSynced,
   showToast,
+  onConfigSaved,
 }) => {
   const currentConfig = getSupabaseConfig();
   const [projectUrl, setProjectUrl] = useState(currentConfig.url);
@@ -48,23 +52,47 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
   const [copiedSql, setCopiedSql] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Re-sync fields when modal is opened
+  React.useEffect(() => {
+    if (isOpen) {
+      const cfg = getSupabaseConfig();
+      setProjectUrl(cfg.url || DEFAULT_SUPABASE_URL);
+      setAnonKey(cfg.anonKey || DEFAULT_SUPABASE_KEY);
+      setTestResult(null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSaveConfig = () => {
-    localStorage.setItem('supabase_project_url', projectUrl.trim());
-    localStorage.setItem('supabase_anon_key', anonKey.trim());
+    const finalUrl = (projectUrl || '').trim() || DEFAULT_SUPABASE_URL;
+    const finalKey = (anonKey || '').trim() || DEFAULT_SUPABASE_KEY;
+    localStorage.setItem('supabase_project_url', finalUrl);
+    localStorage.setItem('supabase_anon_key', finalKey);
+    setProjectUrl(finalUrl);
+    setAnonKey(finalKey);
     setTestResult(null);
+    onConfigSaved?.();
     showToast('Configuración de Supabase guardada.');
   };
 
   const handleTestConnection = async () => {
-    handleSaveConfig();
+    const finalUrl = (projectUrl || '').trim() || DEFAULT_SUPABASE_URL;
+    const finalKey = (anonKey || '').trim() || DEFAULT_SUPABASE_KEY;
+    setProjectUrl(finalUrl);
+    setAnonKey(finalKey);
+    localStorage.setItem('supabase_project_url', finalUrl);
+    localStorage.setItem('supabase_anon_key', finalKey);
+
     setIsTesting(true);
     setTestResult(null);
 
-    const result = await testSupabaseConnection();
+    const result = await testSupabaseConnection(finalUrl, finalKey);
     setIsTesting(false);
     setTestResult(result);
+    if (result.success) {
+      onConfigSaved?.();
+    }
   };
 
   const handleCopySql = () => {
@@ -167,27 +195,39 @@ export const SupabaseModal: React.FC<SupabaseModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">
-                Project URL (Project Settings &rarr; API)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-400 font-semibold">
+                  Project URL (Project Settings &rarr; API)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectUrl(DEFAULT_SUPABASE_URL);
+                    setAnonKey(DEFAULT_SUPABASE_KEY);
+                  }}
+                  className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold underline cursor-pointer"
+                >
+                  Restaurar datos de tu proyecto
+                </button>
+              </div>
               <input
                 type="text"
                 value={projectUrl}
                 onChange={(e) => setProjectUrl(e.target.value)}
-                placeholder="https://xyzabcdefghijklmnop.supabase.co"
+                placeholder={DEFAULT_SUPABASE_URL}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div>
               <label className="block text-slate-400 mb-1 font-semibold">
-                Project API Anon Key (Public Key)
+                Project API Publishable / Anon Key (Public Key)
               </label>
               <input
-                type="password"
+                type="text"
                 value={anonKey}
                 onChange={(e) => setAnonKey(e.target.value)}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                placeholder={DEFAULT_SUPABASE_KEY}
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
               />
             </div>

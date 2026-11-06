@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Plus, Download, BarChart3, Calendar, FileCode, Trash2, ListOrdered, Database } from 'lucide-react';
+import { Shield, Plus, Download, BarChart3, Calendar, FileCode, Trash2, ListOrdered, Database, Camera } from 'lucide-react';
 import { Team } from '../types/football';
 import { LEAGUE_TEAMS } from '../data/teams';
 
@@ -17,6 +17,7 @@ interface HeaderProps {
   onClearData: () => void;
   totalMatches: number;
   totalGoals: number;
+  onOpenScanModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   onClearData,
   totalMatches,
   totalGoals,
+  onOpenScanModal,
 }) => {
   const currentTeam = selectedTeamId !== 'ALL' ? LEAGUE_TEAMS.find((t) => t.id === selectedTeamId) : null;
 
@@ -105,19 +107,38 @@ export const Header: React.FC<HeaderProps> = ({
               <span>+ Jornada</span>
             </button>
 
+            {onOpenScanModal && (
+              <button
+                onClick={onOpenScanModal}
+                title="Subir o pegar una captura de partido (BeSoccer, RFEF, móvil) para registrar automáticamente jornada, resultado, minutos, goleadores y asistentes con IA"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-md shadow-indigo-600/25 border border-indigo-400/40 transition active:scale-95 cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>📸 Auto-Captura IA</span>
+              </button>
+            )}
+
             {/* Supabase Connection Button */}
             <button
               onClick={onOpenSupabase}
-              title="Conectar con tu base de datos Supabase"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition active:scale-95 cursor-pointer ${
+              title={isSupabaseConnected ? 'Conectado a tu proyecto Supabase (clic para ver detalles)' : 'Conectar con tu base de datos Supabase'}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition active:scale-95 cursor-pointer ${
                 isSupabaseConnected
-                  ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/30'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/60 shadow-sm shadow-emerald-500/20 hover:bg-emerald-500/30'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
               }`}
             >
-              <Database className={`w-3.5 h-3.5 ${isSupabaseConnected ? 'text-emerald-400' : 'text-slate-400'}`} />
-              <span className="hidden sm:inline">Supabase</span>
-              <span className={`w-2 h-2 rounded-full ${isSupabaseConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <Database className={`w-3.5 h-3.5 ${isSupabaseConnected ? 'text-emerald-400' : 'text-amber-400'}`} />
+              <div className="flex items-center gap-1.5">
+                <span>Supabase</span>
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold tracking-wide uppercase ${
+                  isSupabaseConnected
+                    ? 'bg-emerald-500 text-slate-950 shadow-xs'
+                    : 'bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                }`}>
+                  {isSupabaseConnected ? 'Conectado' : 'Conectar'}
+                </span>
+              </div>
             </button>
 
             {/* Standalone HTML Download Button */}

@@ -12,6 +12,7 @@ import {
   Layers,
   Sparkles,
   MapPin,
+  Camera,
 } from 'lucide-react';
 import {
   Match,
@@ -21,6 +22,7 @@ import {
   TacticalPhase,
 } from '../types/football';
 import { LEAGUE_TEAMS, getTeamById } from '../data/teams';
+import { TacticalReportCaptureModal } from './TacticalReportCaptureModal';
 
 interface MetricsDashboardProps {
   matches: Match[];
@@ -41,6 +43,7 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
 }) => {
   const [selectedPhase, setSelectedPhase] = useState<TacticalPhase | 'ALL'>('ALL');
   const [viewSide, setViewSide] = useState<'FOR' | 'AGAINST'>('FOR');
+  const [isCaptureModalOpen, setIsCaptureModalOpen] = useState(false);
 
   const currentTeam = selectedTeamId !== 'ALL' ? getTeamById(selectedTeamId) : null;
 
@@ -187,6 +190,15 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
               </option>
             ))}
           </select>
+
+          <button
+            onClick={() => setIsCaptureModalOpen(true)}
+            title="Abrir pantalla para captura de informe táctico (con puntos, casa, fuera, tipología, goleadores y asistentes)"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white shadow-lg shadow-emerald-600/30 border border-emerald-400/40 transition active:scale-95 cursor-pointer"
+          >
+            <Camera className="w-4 h-4 text-emerald-200" />
+            <span>📸 Para Captura</span>
+          </button>
 
           <button
             onClick={onOpenNewGoal}
@@ -657,6 +669,16 @@ export const MetricsDashboard: React.FC<MetricsDashboardProps> = ({
           </div>
         )}
       </div>
+
+      {/* Tactical Report Capture Modal */}
+      <TacticalReportCaptureModal
+        isOpen={isCaptureModalOpen}
+        onClose={() => setIsCaptureModalOpen(false)}
+        matches={matches}
+        goals={goals}
+        selectedTeamId={selectedTeamId}
+        onSelectTeamId={onSelectTeamId}
+      />
     </div>
   );
 };

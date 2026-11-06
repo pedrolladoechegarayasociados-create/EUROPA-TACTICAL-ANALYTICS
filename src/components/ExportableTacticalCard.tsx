@@ -106,6 +106,15 @@ export const ExportableTacticalCard: React.FC<ExportableTacticalCardProps> = ({
   });
   const topScorers = Object.entries(scorersMap).sort((a, b) => b[1] - a[1]).slice(0, 4);
 
+  // Top assisters
+  const assistersMap: Record<string, number> = {};
+  teamGoalsFor.forEach((g) => {
+    if (g.assister && g.assister.trim()) {
+      assistersMap[g.assister] = (assistersMap[g.assister] || 0) + 1;
+    }
+  });
+  const topAssisters = Object.entries(assistersMap).sort((a, b) => b[1] - a[1]).slice(0, 4);
+
   // Native html2canvas download handler
   const handleDownloadImage = async () => {
     if (!cardRef.current) return;
@@ -419,20 +428,38 @@ export const ExportableTacticalCard: React.FC<ExportableTacticalCardProps> = ({
                 </div>
               </div>
 
-              {/* Top Scorers */}
-              <div className="mt-4 pt-3 border-t border-slate-800">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Máximos Goleadores
-                </span>
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-200 flex-wrap">
-                  {topScorers.map(([scorer, count]) => (
-                    <span key={scorer} className="bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
-                      {scorer} <span className="text-blue-400 font-mono">({count})</span>
-                    </span>
-                  ))}
-                  {topScorers.length === 0 && (
-                    <span className="text-[11px] text-slate-500 italic">Sin goleadores registrados</span>
-                  )}
+              {/* Top Scorers & Top Assisters */}
+              <div className="mt-4 pt-3 border-t border-slate-800 space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    ⚽ Máximos Goleadores
+                  </span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-200 flex-wrap">
+                    {topScorers.map(([scorer, count]) => (
+                      <span key={scorer} className="bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                        {scorer} <span className="text-emerald-400 font-mono">({count})</span>
+                      </span>
+                    ))}
+                    {topScorers.length === 0 && (
+                      <span className="text-[11px] text-slate-500 italic">Sin goleadores registrados</span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    👟 Máximos Asistentes
+                  </span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-200 flex-wrap">
+                    {topAssisters.map(([assister, count]) => (
+                      <span key={assister} className="bg-slate-950 px-2 py-0.5 rounded-lg border border-slate-800">
+                        {assister} <span className="text-blue-400 font-mono">({count})</span>
+                      </span>
+                    ))}
+                    {topAssisters.length === 0 && (
+                      <span className="text-[11px] text-slate-500 italic">Sin asistentes registrados</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
