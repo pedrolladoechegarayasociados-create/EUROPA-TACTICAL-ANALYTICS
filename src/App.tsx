@@ -168,12 +168,12 @@ export default function App() {
     }
   };
 
-  // Restore the 109 official matches extracted from the user's screenshots
+  // Restore the 116 official matches extracted from the user's screenshots
   const handleRestoreOfficialMatches = () => {
-    if (confirm('¿Cargar los 109 partidos oficiales (J1-J10 y J12) registrados a partir de tus actas?')) {
+    if (confirm('¿Cargar los 116 partidos oficiales (J1-J12) registrados a partir de tus actas?')) {
       setMatches(INITIAL_MATCHES);
       setGoals(INITIAL_GOALS);
-      showToast('109 partidos oficiales cargados.');
+      showToast('116 partidos oficiales cargados.');
     }
   };
 
@@ -355,7 +355,7 @@ export default function App() {
                 onClick={handleRestoreOfficialMatches}
                 className="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
               >
-                Restaurar 109 Partidos Oficiales (J1-J10, J12)
+                Restaurar 116 Partidos Oficiales (J1-J12)
               </button>
               <button
                 onClick={handleOpenNewMatch}
@@ -367,42 +367,44 @@ export default function App() {
           </div>
         )}
 
-        {/* Banner if Jornada 12 (or 10) is missing from local state / Supabase */}
-        {(!matches.some((m) => m.jornada === 12) || !matches.some((m) => m.jornada === 10)) && matches.length > 0 && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">⚡</span>
-              <div>
-                <h4 className="text-xs font-bold text-amber-200">
-                  ¡Nueva Jornada 12 (9 partidos y 20 goles) disponible para incorporar!
-                </h4>
-                <p className="text-[11px] text-amber-300/80">
-                  Pulsa aquí para añadir los 9 partidos oficiales, goleadores y asistentes nuevos directamente a tus tablas y a Supabase.
-                </p>
+        {/* Banner if any official matches (e.g. J11 / J12) are missing from local state / Supabase */}
+        {(() => {
+          const existingIds = new Set(matches.map((m) => m.id));
+          const existingGoalIds = new Set(goals.map((g) => g.id));
+          const missingMatches = INITIAL_MATCHES.filter((m) => !existingIds.has(m.id));
+          const missingGoals = INITIAL_GOALS.filter((g) => !existingGoalIds.has(g.id));
+          if (missingMatches.length === 0 || matches.length === 0) return null;
+          return (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">⚡</span>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-200">
+                    ¡Nuevos datos oficiales disponibles ({missingMatches.length} partidos y {missingGoals.length} goles pendientes)!
+                  </h4>
+                  <p className="text-[11px] text-amber-300/80">
+                    Pulsa aquí para añadir los nuevos partidos oficiales (J11 / J12), goleadores y asistentes directamente a tus tablas y a Supabase.
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={() => {
+                  setMatches((prev) => [...prev, ...missingMatches]);
+                  setGoals((prev) => [...prev, ...missingGoals]);
+
+                  if (isSupabaseConnected) {
+                    missingMatches.forEach((m) => saveMatchToSupabase(m));
+                    missingGoals.forEach((g) => saveGoalToSupabase(g));
+                  }
+                  showToast(`¡${missingMatches.length} partidos y ${missingGoals.length} goles nuevos añadidos con éxito!`);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+              >
+                <span>+ Cargar {missingMatches.length} Partidos Nuevos</span>
+              </button>
             </div>
-            <button
-              onClick={() => {
-                const existingIds = new Set(matches.map((m) => m.id));
-                const existingGoalIds = new Set(goals.map((g) => g.id));
-                const missingMatches = INITIAL_MATCHES.filter((m) => !existingIds.has(m.id));
-                const missingGoals = INITIAL_GOALS.filter((g) => !existingGoalIds.has(g.id));
-
-                setMatches((prev) => [...prev, ...missingMatches]);
-                setGoals((prev) => [...prev, ...missingGoals]);
-
-                if (isSupabaseConnected) {
-                  missingMatches.forEach((m) => saveMatchToSupabase(m));
-                  missingGoals.forEach((g) => saveGoalToSupabase(g));
-                }
-                showToast(`¡${missingMatches.length} partidos y ${missingGoals.length} goles nuevos añadidos con éxito!`);
-              }}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
-            >
-              <span>+ Cargar Jornada 12 Ahora</span>
-            </button>
-          </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'standings' && (
           <LeagueStandings
