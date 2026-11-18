@@ -294,7 +294,7 @@ export const MatchesList: React.FC<MatchesListProps> = ({
           </button>
           {jornadasList.map((j) => {
             const count = matches.filter((m) => m.jornada === j).length;
-            const isJ10 = j === 10;
+            const isLatest = j === Math.max(...jornadasList);
             const isSelected = jornadaFilter === String(j);
             return (
               <button
@@ -304,14 +304,14 @@ export const MatchesList: React.FC<MatchesListProps> = ({
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400'
-                    : isJ10
+                    : isLatest
                     ? 'bg-amber-950/80 text-amber-300 border border-amber-600/60 hover:bg-amber-900/80'
                     : 'bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800'
                 }`}
               >
                 <span>J{j}</span>
                 <span className="text-[10px] opacity-75">({count})</span>
-                {isJ10 && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                {isLatest && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
               </button>
             );
           })}

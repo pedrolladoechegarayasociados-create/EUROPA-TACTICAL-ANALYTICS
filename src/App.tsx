@@ -168,12 +168,12 @@ export default function App() {
     }
   };
 
-  // Restore the 95 official matches extracted from the user's screenshots
+  // Restore the 109 official matches extracted from the user's screenshots
   const handleRestoreOfficialMatches = () => {
-    if (confirm('¿Cargar las 10 jornadas oficiales (95 partidos) registradas a partir de tus actas?')) {
+    if (confirm('¿Cargar los 109 partidos oficiales (J1-J10 y J12) registrados a partir de tus actas?')) {
       setMatches(INITIAL_MATCHES);
       setGoals(INITIAL_GOALS);
-      showToast('95 partidos oficiales (Jornadas 1 a 10) cargados.');
+      showToast('109 partidos oficiales cargados.');
     }
   };
 
@@ -355,7 +355,7 @@ export default function App() {
                 onClick={handleRestoreOfficialMatches}
                 className="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow transition cursor-pointer"
               >
-                Restaurar 95 Partidos Oficiales (J1-J10)
+                Restaurar 109 Partidos Oficiales (J1-J10, J12)
               </button>
               <button
                 onClick={handleOpenNewMatch}
@@ -367,43 +367,39 @@ export default function App() {
           </div>
         )}
 
-        {/* Banner if Jornada 10 is missing from local state / Supabase */}
-        {!matches.some((m) => m.jornada === 10) && matches.length > 0 && (
+        {/* Banner if Jornada 12 (or 10) is missing from local state / Supabase */}
+        {(!matches.some((m) => m.jornada === 12) || !matches.some((m) => m.jornada === 10)) && matches.length > 0 && (
           <div className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-xl">⚡</span>
               <div>
                 <h4 className="text-xs font-bold text-amber-200">
-                  ¡Jornada 10 disponible para incorporar!
+                  ¡Nueva Jornada 12 (9 partidos y 20 goles) disponible para incorporar!
                 </h4>
                 <p className="text-[11px] text-amber-300/80">
-                  Tienes cargadas hasta la Jornada 9 ({matches.length} partidos). Pulsa aquí para añadir los 5 partidos oficiales y 13 goles de la Jornada 10.
+                  Pulsa aquí para añadir los 9 partidos oficiales, goleadores y asistentes nuevos directamente a tus tablas y a Supabase.
                 </p>
               </div>
             </div>
             <button
               onClick={() => {
-                const j10Matches = INITIAL_MATCHES.filter((m) => m.jornada === 10);
-                const j10Goals = INITIAL_GOALS.filter((g) => g.matchId.startsWith('j10-'));
-                setMatches((prev) => {
-                  const existingIds = new Set(prev.map((m) => m.id));
-                  const toAdd = j10Matches.filter((m) => !existingIds.has(m.id));
-                  return [...prev, ...toAdd];
-                });
-                setGoals((prev) => {
-                  const existingGoalIds = new Set(prev.map((g) => g.id));
-                  const toAdd = j10Goals.filter((g) => !existingGoalIds.has(g.id));
-                  return [...prev, ...toAdd];
-                });
+                const existingIds = new Set(matches.map((m) => m.id));
+                const existingGoalIds = new Set(goals.map((g) => g.id));
+                const missingMatches = INITIAL_MATCHES.filter((m) => !existingIds.has(m.id));
+                const missingGoals = INITIAL_GOALS.filter((g) => !existingGoalIds.has(g.id));
+
+                setMatches((prev) => [...prev, ...missingMatches]);
+                setGoals((prev) => [...prev, ...missingGoals]);
+
                 if (isSupabaseConnected) {
-                  j10Matches.forEach((m) => saveMatchToSupabase(m));
-                  j10Goals.forEach((g) => saveGoalToSupabase(g));
+                  missingMatches.forEach((m) => saveMatchToSupabase(m));
+                  missingGoals.forEach((g) => saveGoalToSupabase(g));
                 }
-                showToast('¡Jornada 10 (5 partidos y 13 goles) añadida con éxito!');
+                showToast(`¡${missingMatches.length} partidos y ${missingGoals.length} goles nuevos añadidos con éxito!`);
               }}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md transition whitespace-nowrap cursor-pointer flex items-center gap-1.5"
             >
-              <span>+ Cargar Jornada 10 Ahora</span>
+              <span>+ Cargar Jornada 12 Ahora</span>
             </button>
           </div>
         )}
