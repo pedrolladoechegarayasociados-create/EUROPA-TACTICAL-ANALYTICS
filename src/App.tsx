@@ -21,6 +21,8 @@ import {
   deleteGoalFromSupabase,
   fetchMatchesFromSupabase,
   fetchGoalsFromSupabase,
+  saveMatchesBatchToSupabase,
+  saveGoalsBatchToSupabase,
 } from './lib/supabase';
 
 export default function App() {
@@ -108,27 +110,33 @@ export default function App() {
     return getSupabaseConfig().isConfigured;
   });
 
-  const refreshSupabaseData = () => {
+  const refreshSupabaseData = async () => {
     const cfg = getSupabaseConfig();
     setIsSupabaseConnected(cfg.isConfigured);
     if (cfg.isConfigured) {
-      fetchMatchesFromSupabase().then((remoteMatches) => {
-        if (remoteMatches && remoteMatches.length > 0) {
-          const remoteIds = new Set(remoteMatches.map((m) => m.id));
-          const missingOfficial = INITIAL_MATCHES.filter((m) => !remoteIds.has(m.id));
-          const mergedMatches = [...remoteMatches, ...missingOfficial];
-          setMatches(mergedMatches);
-        }
-      });
+      const [remoteMatches, remoteGoals] = await Promise.all([
+        fetchMatchesFromSupabase(),
+        fetchGoalsFromSupabase(),
+      ]);
 
-      fetchGoalsFromSupabase().then((remoteGoals) => {
-        if (remoteGoals && remoteGoals.length > 0) {
-          const remoteGoalIds = new Set(remoteGoals.map((g) => g.id));
-          const missingOfficialGoals = INITIAL_GOALS.filter((g) => !remoteGoalIds.has(g.id));
-          const mergedGoals = [...remoteGoals, ...missingOfficialGoals];
-          setGoals(mergedGoals);
+      if (remoteMatches && remoteMatches.length > 0) {
+        const remoteIds = new Set(remoteMatches.map((m) => m.id));
+        const missingOfficial = INITIAL_MATCHES.filter((m) => !remoteIds.has(m.id));
+        setMatches([...remoteMatches, ...missingOfficial]);
+        if (missingOfficial.length > 0) {
+          await saveMatchesBatchToSupabase(missingOfficial);
         }
-      });
+      }
+
+      if (remoteGoals && remoteGoals.length > 0) {
+        const remoteGoalIds = new Set(remoteGoals.map((g) => g.id));
+        const missingOfficialGoals = INITIAL_GOALS.filter((g) => !remoteGoalIds.has(g.id));
+        const mergedGoals = [...remoteGoals, ...missingOfficialGoals];
+        setGoals(mergedGoals);
+        if (missingOfficialGoals.length > 0) {
+          await saveGoalsBatchToSupabase(missingOfficialGoals);
+        }
+      }
     }
   };
 

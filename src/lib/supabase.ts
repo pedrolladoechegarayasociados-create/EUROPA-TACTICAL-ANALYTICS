@@ -284,3 +284,52 @@ export const deleteGoalFromSupabase = async (goalId: string): Promise<boolean> =
   const { error } = await client.from('goals').delete().eq('id', goalId);
   return !error;
 };
+
+export const saveMatchesBatchToSupabase = async (matchList: Match[]): Promise<boolean> => {
+  if (matchList.length === 0) return true;
+  const client = getSupabase();
+  if (!client) return false;
+
+  const rows = matchList.map((m) => ({
+    id: m.id,
+    jornada: m.jornada,
+    date: m.date,
+    home_team_id: m.homeTeamId,
+    away_team_id: m.awayTeamId,
+    home_score: m.homeScore,
+    away_score: m.awayScore,
+    competition: m.competition,
+    stadium: m.stadium,
+    first_goal_team_id: m.firstGoalTeamId || 'NONE',
+    notes: m.notes || null,
+  }));
+
+  const { error } = await client.from('matches').upsert(rows);
+  return !error;
+};
+
+export const saveGoalsBatchToSupabase = async (goalList: Goal[]): Promise<boolean> => {
+  if (goalList.length === 0) return true;
+  const client = getSupabase();
+  if (!client) return false;
+
+  const rows = goalList.map((g) => ({
+    id: g.id,
+    match_id: g.matchId,
+    team_id: g.teamId,
+    conceding_team_id: g.concedingTeamId,
+    scorer: g.scorer,
+    assister: g.assister || null,
+    minute: g.minute,
+    minute_interval: g.minuteInterval,
+    score_before: g.scoreBefore,
+    tactical_phase: g.tacticalPhase,
+    tactical_subtype: g.tacticalSubtype,
+    pitch_zone: g.pitchZone || null,
+    body_part: g.bodyPart || null,
+    notes: g.notes || null,
+  }));
+
+  const { error } = await client.from('goals').upsert(rows);
+  return !error;
+};
